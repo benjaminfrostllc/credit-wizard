@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0a2e"/>
+      <stop offset="100%" style="stop-color:#0f0a1f"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700"/>
+      <stop offset="50%" style="stop-color:#ffec8b"/>
+      <stop offset="100%" style="stop-color:#daa520"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Outer glow ring -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#glow)" stroke-width="8" opacity="0.3"/>
+
+  <!-- Gold coin -->
+  <circle cx="256" cy="256" r="140" fill="url(#coin)"/>
+
+  <!-- Inner coin detail -->
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#b8860b" stroke-width="6"/>
+
+  <!-- Dollar sign -->
+  <text x="256" y="290" font-family="Arial, sans-serif" font-size="160" font-weight="bold" fill="#8b4513" text-anchor="middle">$</text>
+
+  <!-- Sparkles -->
+  <circle cx="140" cy="140" r="8" fill="#fff" opacity="0.8"/>
+  <circle cx="380" cy="120" r="6" fill="#fff" opacity="0.6"/>
+  <circle cx="400" cy="380" r="7" fill="#fff" opacity="0.7"/>
+  <circle cx="120" cy="360" r="5" fill="#fff" opacity="0.5"/>
+</svg>
