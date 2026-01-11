@@ -3,6 +3,7 @@ import { useApp, type SectionKey } from '../context/AppContext'
 import { ProgressBar } from '../components/ProgressBar'
 import { TutorialBox } from '../components/InfoTooltip'
 import { NotificationBell } from '../components/NotificationBell'
+import { DisputeCard } from '../components/DisputeCard'
 import logo from '../assets/logo.png'
 
 interface Section {
@@ -223,6 +224,11 @@ export default function Dashboard() {
             currentStep={currentStep}
             completedSteps={completedSteps}
           />
+        </div>
+
+        {/* Dispute Center Card */}
+        <div className="mb-6">
+          <DisputeCard />
         </div>
 
         {/* Section Cards */}
