@@ -6,6 +6,8 @@ interface MilestoneStep {
   subtitle: string
   icon: string
   phase: 'onboarding' | 'tracking'
+  description?: string
+  instructions?: string[]
 }
 
 interface TrackingDetails {
@@ -22,13 +24,53 @@ interface MilestoneTrackerProps {
   completedSteps: number[]
   trackingDetails?: Record<number, TrackingDetails>
   onStepClick?: (stepId: number) => void
+  onUploadClick?: (type: 'docs' | 'report') => void
 }
 
 // Onboarding steps (1-3)
 const onboardingSteps: MilestoneStep[] = [
-  { id: 1, title: 'DOCS', subtitle: 'Upload ID & SSN', icon: '📄', phase: 'onboarding' },
-  { id: 2, title: 'REPORT', subtitle: 'Credit report', icon: '📊', phase: 'onboarding' },
-  { id: 3, title: 'ANALYSIS', subtitle: 'AI review', icon: '🔍', phase: 'onboarding' },
+  {
+    id: 1,
+    title: 'DOCS',
+    subtitle: 'Upload ID & SSN',
+    icon: '📄',
+    phase: 'onboarding',
+    description: 'Verify your identity',
+    instructions: [
+      'Upload a clear photo of your Government-Issued ID (front and back)',
+      'Upload your Social Security Card',
+      'Upload Proof of Address (utility bill or bank statement)',
+      'Ensure all text is clearly readable'
+    ]
+  },
+  {
+    id: 2,
+    title: 'REPORT',
+    subtitle: 'Credit report',
+    icon: '📊',
+    phase: 'onboarding',
+    description: 'Upload your credit report',
+    instructions: [
+      'Get your free credit report from AnnualCreditReport.com',
+      'Download reports from all 3 bureaus (Experian, Equifax, TransUnion)',
+      'Upload PDF or screenshot of each report',
+      'Our AI will analyze and identify disputable items'
+    ]
+  },
+  {
+    id: 3,
+    title: 'ANALYSIS',
+    subtitle: 'AI review',
+    icon: '🔍',
+    phase: 'onboarding',
+    description: 'AI analyzes your report',
+    instructions: [
+      'Our AI scans for inaccurate information',
+      'Identifies FCRA violations and reporting errors',
+      'Calculates success probability for each item',
+      'Generates personalized dispute strategy'
+    ]
+  },
 ]
 
 // Tracking steps (4-8)
@@ -42,13 +84,95 @@ const trackingSteps: MilestoneStep[] = [
 
 export const disputeSteps = [...onboardingSteps, ...trackingSteps]
 
+// Instruction Modal Component
+function InstructionModal({
+  step,
+  isOpen,
+  onClose,
+  onAction,
+}: {
+  step: MilestoneStep
+  isOpen: boolean
+  onClose: () => void
+  onAction?: () => void
+}) {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative w-full max-w-md rounded-2xl p-6 animate-in fade-in zoom-in-95 duration-200"
+        style={{ background: 'linear-gradient(145deg, #1a1525 0%, #12101a 100%)', border: '1px solid rgba(212, 175, 55, 0.3)' }}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-gold to-yellow-500 flex items-center justify-center text-2xl">
+            {step.icon}
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-pixel)' }}>
+              {step.title}
+            </h3>
+            <p className="text-sm text-gold">{step.description}</p>
+          </div>
+        </div>
+
+        {step.instructions && (
+          <ul className="space-y-3 mb-6">
+            {step.instructions.map((instruction, i) => (
+              <li key={i} className="flex items-start gap-3 text-gray-300 text-sm">
+                <span className="w-5 h-5 rounded-full bg-gold/20 text-gold flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                  {i + 1}
+                </span>
+                {instruction}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {(step.id === 1 || step.id === 2) && onAction && (
+          <button
+            onClick={onAction}
+            className="w-full py-3 bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            {step.id === 1 ? 'Upload Documents' : 'Upload Credit Report'}
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
+
+        {step.id === 3 && (
+          <div className="flex items-center justify-center gap-2 py-3 text-gold">
+            <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <span className="ml-2 text-sm">Analysis in progress...</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Step Circle with Tooltip
 function StepCircle({
   step,
   isCompleted,
   isCurrent,
   isPending,
   onClick,
-  isClickable
+  isClickable,
+  showTooltip,
 }: {
   step: MilestoneStep
   isCompleted: boolean
@@ -56,56 +180,96 @@ function StepCircle({
   isPending: boolean
   onClick?: () => void
   isClickable: boolean
+  showTooltip?: boolean
 }) {
+  const [hovering, setHovering] = useState(false)
+
   return (
-    <button
-      onClick={isClickable ? onClick : undefined}
-      disabled={!isClickable}
-      className={`
-        relative w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm md:text-lg font-bold
-        transition-all duration-300
-        ${isClickable ? 'cursor-pointer hover:scale-110' : 'cursor-default'}
-        ${isCompleted
-          ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-          : isCurrent
-          ? 'bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark shadow-lg shadow-gold/50'
-          : 'bg-gray-700/50 text-gray-500 border-2 border-gray-600'
-        }
-      `}
-    >
-      {isCurrent && (
-        <div className="absolute inset-0 rounded-full bg-gold/30 animate-ping" />
+    <div className="relative">
+      <button
+        onClick={isClickable ? onClick : undefined}
+        disabled={!isClickable && !isPending}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+        className={`
+          relative w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm md:text-lg font-bold
+          transition-all duration-300
+          ${isClickable ? 'cursor-pointer hover:scale-110' : isPending ? 'cursor-not-allowed' : 'cursor-default'}
+          ${isCompleted
+            ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
+            : isCurrent
+            ? 'bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark shadow-lg shadow-gold/50'
+            : 'bg-gray-700/50 text-gray-500 border-2 border-gray-600'
+          }
+        `}
+      >
+        {isCurrent && (
+          <div className="absolute inset-0 rounded-full bg-gold/30 animate-ping" />
+        )}
+        {isCompleted ? (
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          </svg>
+        ) : isPending ? (
+          <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        ) : (
+          <span className="relative z-10">{step.icon}</span>
+        )}
+      </button>
+
+      {/* Tooltip for locked steps */}
+      {isPending && hovering && showTooltip && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-300 whitespace-nowrap z-10 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Complete previous steps to unlock
+          </div>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+        </div>
       )}
-      {isCompleted ? (
-        <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-        </svg>
-      ) : isPending ? (
-        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      ) : (
-        <span className="relative z-10">{step.icon}</span>
-      )}
-    </button>
+    </div>
   )
 }
 
 function OnboardingPhase({
   currentStep,
-  completedSteps
+  completedSteps,
+  onUploadClick,
 }: {
   currentStep: number
   completedSteps: number[]
+  onUploadClick?: (type: 'docs' | 'report') => void
 }) {
+  const [selectedStep, setSelectedStep] = useState<MilestoneStep | null>(null)
+
   const isCompleted = (id: number) => completedSteps.includes(id)
   const isCurrent = (id: number) => id === currentStep
   const isPending = (id: number) => !isCompleted(id) && !isCurrent(id)
+
+  const handleStepClick = (step: MilestoneStep) => {
+    if (!isPending(step.id)) {
+      setSelectedStep(step)
+    }
+  }
+
+  const handleModalAction = () => {
+    if (selectedStep?.id === 1) {
+      onUploadClick?.('docs')
+    } else if (selectedStep?.id === 2) {
+      onUploadClick?.('report')
+    }
+    setSelectedStep(null)
+  }
 
   return (
     <div className="mb-6">
       <h4 className="text-xs text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
         <span>🚀</span> ONBOARDING
+        <span className="text-[10px] text-gold ml-auto">Click steps for instructions</span>
       </h4>
       <div className="flex items-center justify-between">
         {onboardingSteps.map((step, index) => (
@@ -116,7 +280,9 @@ function OnboardingPhase({
                 isCompleted={isCompleted(step.id)}
                 isCurrent={isCurrent(step.id)}
                 isPending={isPending(step.id)}
-                isClickable={false}
+                onClick={() => handleStepClick(step)}
+                isClickable={!isPending(step.id)}
+                showTooltip={true}
               />
               <div className="mt-2 text-center">
                 <p
@@ -132,7 +298,7 @@ function OnboardingPhase({
               </div>
             </div>
             {index < onboardingSteps.length - 1 && (
-              <div className={`flex-1 h-1 mx-2 rounded-full ${
+              <div className={`flex-1 h-1 mx-2 rounded-full transition-all duration-500 ${
                 isCompleted(step.id) ? 'bg-green-500' :
                 isCurrent(step.id) ? 'bg-gradient-to-r from-gold to-gray-600' : 'bg-gray-700'
               }`} />
@@ -140,6 +306,16 @@ function OnboardingPhase({
           </div>
         ))}
       </div>
+
+      {/* Instruction Modal */}
+      {selectedStep && (
+        <InstructionModal
+          step={selectedStep}
+          isOpen={true}
+          onClose={() => setSelectedStep(null)}
+          onAction={handleModalAction}
+        />
+      )}
     </div>
   )
 }
@@ -244,6 +420,7 @@ function TrackingPhase({
                   isCurrent={isCurrent(step.id)}
                   isPending={isPending(step.id)}
                   isClickable={false}
+                  showTooltip={false}
                 />
                 <div className="flex-1 text-left">
                   <p
@@ -303,13 +480,15 @@ export function MilestoneTracker({
   currentStep,
   completedSteps,
   trackingDetails,
-  onStepClick
+  onStepClick,
+  onUploadClick,
 }: MilestoneTrackerProps) {
   return (
     <div className="space-y-6">
       <OnboardingPhase
         currentStep={currentStep}
         completedSteps={completedSteps}
+        onUploadClick={onUploadClick}
       />
       <TrackingPhase
         currentStep={currentStep}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { MilestoneTracker } from '../components/MilestoneTracker'
@@ -322,6 +322,7 @@ function ItemCard({ item }: { item: DisputeItem }) {
 
 export default function Disputes() {
   const { user } = useApp()
+  const navigate = useNavigate()
   const [cases, setCases] = useState<DisputeCase[]>([])
   const [items, setItems] = useState<DisputeItem[]>([])
   const [rounds, setRounds] = useState<DisputeRound[]>([])
@@ -375,48 +376,61 @@ export default function Disputes() {
       setCases(casesData || [])
 
       console.log('[Disputes] Cases loaded:', casesData?.length || 0)
+      if (casesData) {
+        console.log('[Disputes] Case IDs:', casesData.map(c => ({ id: c.id, case_id: c.case_id })))
+      }
 
-      // Fetch items - try multiple approaches
+      // Fetch items using multiple strategies
       let itemsData: DisputeItem[] = []
 
-      // Debug: Fetch ALL items to see what's in the database
-      const { data: allItems } = await supabase
-        .from('dispute_items')
-        .select('id, case_id, user_id, bureau, creditor')
-        .limit(20)
-
-      console.log('[Disputes] DEBUG - All items in table:', allItems)
-      console.log('[Disputes] Current user.id:', user.id)
-
-      // Approach 1: Query by user_id directly (items have user_id field)
-      const { data: itemsByUser, error: itemsError1 } = await supabase
+      // Strategy 1: Get all items for this user (by user_id)
+      const { data: itemsByUser } = await supabase
         .from('dispute_items')
         .select('*')
         .eq('user_id', user.id)
 
-      console.log('[Disputes] Items by user_id:', { itemsByUser, itemsError1, userId: user.id })
+      console.log('[Disputes] Strategy 1 - Items by user_id:', itemsByUser?.length || 0, 'user_id:', user.id)
 
-      if (!itemsError1 && itemsByUser && itemsByUser.length > 0) {
+      if (itemsByUser && itemsByUser.length > 0) {
         itemsData = itemsByUser
-      } else if (casesData && casesData.length > 0) {
-        // Approach 2: Query by case_id string
-        const caseStringIds = casesData.map(c => c.case_id).filter(Boolean)
-        console.log('[Disputes] Trying case_id filter:', caseStringIds)
+      } else {
+        // Strategy 2: Get items by case_id (TEXT field like 'CASE-CW-2026-976-01')
+        if (casesData && casesData.length > 0) {
+          const caseIds = casesData.map(c => c.case_id).filter(Boolean)
+          const { data: itemsByCase } = await supabase
+            .from('dispute_items')
+            .select('*')
+            .in('case_id', caseIds)
 
-        const { data: itemsByCase, error: itemsError2 } = await supabase
-          .from('dispute_items')
-          .select('*')
-          .in('case_id', caseStringIds)
+          console.log('[Disputes] Strategy 2 - Items by case_id:', itemsByCase?.length || 0, 'case_ids:', caseIds)
 
-        console.log('[Disputes] Items by case_id:', { itemsByCase, itemsError2 })
+          if (itemsByCase && itemsByCase.length > 0) {
+            itemsData = itemsByCase
+          }
+        }
 
-        if (!itemsError2 && itemsByCase) {
-          itemsData = itemsByCase
+        // Strategy 3: If still no items, fetch ALL items (no filter) as fallback for debugging
+        if (itemsData.length === 0) {
+          const { data: allItems } = await supabase
+            .from('dispute_items')
+            .select('*')
+            .limit(50)
+
+          console.log('[Disputes] Strategy 3 - All items (no filter):', allItems?.length || 0)
+          if (allItems) {
+            console.log('[Disputes] Sample item user_ids:', allItems.slice(0, 3).map(i => i.user_id))
+            console.log('[Disputes] Sample item case_ids:', allItems.slice(0, 3).map(i => i.case_id))
+          }
+
+          // Use all items if they exist (temporary for debugging)
+          if (allItems && allItems.length > 0) {
+            itemsData = allItems
+          }
         }
       }
 
       setItems(itemsData)
-      console.log('[Disputes] Final items count:', itemsData.length)
+      console.log('[Disputes] Final items loaded:', itemsData.length)
 
       // Fetch rounds
       if (casesData && casesData.length > 0) {
@@ -578,6 +592,13 @@ export default function Disputes() {
           <MilestoneTracker
             currentStep={milestones.current}
             completedSteps={milestones.completed}
+            onUploadClick={(type) => {
+              if (type === 'docs') {
+                navigate('/vault?upload=docs')
+              } else {
+                navigate('/vault?upload=report')
+              }
+            }}
           />
         </div>
 
