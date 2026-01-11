@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { MilestoneTracker, disputeSteps } from '../components/MilestoneTracker'
+import { MilestoneTracker } from '../components/MilestoneTracker'
 
 interface DisputeCase {
   id: string
@@ -376,58 +376,39 @@ export default function Disputes() {
 
       // If we have cases, fetch items and rounds
       if (casesData && casesData.length > 0) {
-        const caseUuids = casesData.map(c => c.id)
         const caseStringIds = casesData.map(c => c.case_id).filter(Boolean)
 
-        // Fetch items - try both UUID and string case_id
-        let itemsData: DisputeItem[] = []
+        console.log('[Disputes] Cases loaded:', casesData.length)
+        console.log('[Disputes] Case string IDs:', caseStringIds)
 
-        // First try with UUID
-        const { data: itemsByUuid, error: itemsError1 } = await supabase
+        // Fetch items by string case_id (dispute_items uses TEXT case_id like 'CASE-CW-2026-976-01')
+        const { data: itemsData, error: itemsError } = await supabase
           .from('dispute_items')
           .select('*')
-          .in('case_id', caseUuids)
+          .in('case_id', caseStringIds)
 
-        if (!itemsError1 && itemsByUuid && itemsByUuid.length > 0) {
-          itemsData = itemsByUuid
-        } else if (caseStringIds.length > 0) {
-          // Try with string case_id
-          const { data: itemsByString, error: itemsError2 } = await supabase
-            .from('dispute_items')
-            .select('*')
-            .in('case_id', caseStringIds)
+        console.log('[Disputes] Items query result:', { itemsData, itemsError, caseStringIds })
 
-          if (!itemsError2 && itemsByString) {
-            itemsData = itemsByString
-          }
+        if (itemsError) {
+          console.error('[Disputes] Items error:', itemsError)
         }
 
-        setItems(itemsData)
+        setItems(itemsData || [])
 
-        // Fetch rounds - try both UUID and string case_id
-        let roundsData: DisputeRound[] = []
-
-        const { data: roundsByUuid, error: roundsError1 } = await supabase
+        // Fetch rounds by string case_id
+        const { data: roundsData, error: roundsError } = await supabase
           .from('dispute_rounds')
           .select('*')
-          .in('case_id', caseUuids)
+          .in('case_id', caseStringIds)
           .order('started_at', { ascending: false })
 
-        if (!roundsError1 && roundsByUuid && roundsByUuid.length > 0) {
-          roundsData = roundsByUuid
-        } else if (caseStringIds.length > 0) {
-          const { data: roundsByString, error: roundsError2 } = await supabase
-            .from('dispute_rounds')
-            .select('*')
-            .in('case_id', caseStringIds)
-            .order('started_at', { ascending: false })
+        console.log('[Disputes] Rounds query result:', { roundsData, roundsError })
 
-          if (!roundsError2 && roundsByString) {
-            roundsData = roundsByString
-          }
+        if (roundsError) {
+          console.error('[Disputes] Rounds error:', roundsError)
         }
 
-        setRounds(roundsData)
+        setRounds(roundsData || [])
 
         // Select first case by default
         if (!selectedCase && casesData.length > 0) {
@@ -568,7 +549,6 @@ export default function Disputes() {
             <span>🎯</span> YOUR JOURNEY
           </h3>
           <MilestoneTracker
-            steps={disputeSteps}
             currentStep={milestones.current}
             completedSteps={milestones.completed}
           />
