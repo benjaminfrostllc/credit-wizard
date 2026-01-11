@@ -2080,7 +2080,8 @@ export async function getCreditUtilization(userId: string): Promise<CreditUtiliz
   return (data || []).map((acc) => {
     const current = acc.balance_current || 0
     const limit = acc.balance_limit || 1
-    const conn = acc.connection as { institution_name: string; logo_url: string | null; primary_color: string | null } | null
+    const connArray = acc.connection as unknown as Array<{ institution_name: string; logo_url: string | null; primary_color: string | null }> | null
+    const conn = connArray?.[0] || null
 
     return {
       account_id: acc.id,
