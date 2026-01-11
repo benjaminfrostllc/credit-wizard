@@ -374,26 +374,53 @@ export default function Disputes() {
       if (casesError) throw casesError
       setCases(casesData || [])
 
-      // If we have cases, fetch items and rounds
-      if (casesData && casesData.length > 0) {
+      console.log('[Disputes] Cases loaded:', casesData?.length || 0)
+
+      // Fetch items - try multiple approaches
+      let itemsData: DisputeItem[] = []
+
+      // Debug: Fetch ALL items to see what's in the database
+      const { data: allItems } = await supabase
+        .from('dispute_items')
+        .select('id, case_id, user_id, bureau, creditor')
+        .limit(20)
+
+      console.log('[Disputes] DEBUG - All items in table:', allItems)
+      console.log('[Disputes] Current user.id:', user.id)
+
+      // Approach 1: Query by user_id directly (items have user_id field)
+      const { data: itemsByUser, error: itemsError1 } = await supabase
+        .from('dispute_items')
+        .select('*')
+        .eq('user_id', user.id)
+
+      console.log('[Disputes] Items by user_id:', { itemsByUser, itemsError1, userId: user.id })
+
+      if (!itemsError1 && itemsByUser && itemsByUser.length > 0) {
+        itemsData = itemsByUser
+      } else if (casesData && casesData.length > 0) {
+        // Approach 2: Query by case_id string
         const caseStringIds = casesData.map(c => c.case_id).filter(Boolean)
+        console.log('[Disputes] Trying case_id filter:', caseStringIds)
 
-        console.log('[Disputes] Cases loaded:', casesData.length)
-        console.log('[Disputes] Case string IDs:', caseStringIds)
-
-        // Fetch items by string case_id (dispute_items uses TEXT case_id like 'CASE-CW-2026-976-01')
-        const { data: itemsData, error: itemsError } = await supabase
+        const { data: itemsByCase, error: itemsError2 } = await supabase
           .from('dispute_items')
           .select('*')
           .in('case_id', caseStringIds)
 
-        console.log('[Disputes] Items query result:', { itemsData, itemsError, caseStringIds })
+        console.log('[Disputes] Items by case_id:', { itemsByCase, itemsError2 })
 
-        if (itemsError) {
-          console.error('[Disputes] Items error:', itemsError)
+        if (!itemsError2 && itemsByCase) {
+          itemsData = itemsByCase
         }
+      }
 
-        setItems(itemsData || [])
+      setItems(itemsData)
+      console.log('[Disputes] Final items count:', itemsData.length)
+
+      // Fetch rounds
+      if (casesData && casesData.length > 0) {
+        const caseStringIds = casesData.map(c => c.case_id).filter(Boolean)
 
         // Fetch rounds by string case_id
         const { data: roundsData, error: roundsError } = await supabase
