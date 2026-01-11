@@ -544,6 +544,10 @@ export async function uploadFile(
     return { success: false, error: 'Supabase not configured.' }
   }
 
+  if (!userId) {
+    return { success: false, error: 'User ID is required for upload.' }
+  }
+
   try {
     const timestamp = Date.now()
     const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
@@ -1866,4 +1870,228 @@ export async function logPlaidApiUsage(
   if (error) {
     console.error('Error logging Plaid API usage:', error)
   }
+}
+
+// ============================================
+// TRANSACTION FUNCTIONS
+// ============================================
+
+export interface Transaction {
+  id: string
+  user_id: string
+  account_id: string
+  plaid_transaction_id: string
+  name: string
+  merchant_name: string | null
+  amount: number
+  currency_code: string
+  category: string[]
+  category_id: string | null
+  primary_category: string
+  date: string
+  datetime: string | null
+  authorized_date: string | null
+  pending: boolean
+  payment_channel: string | null
+  location_city: string | null
+  location_region: string | null
+  location_country: string | null
+  created_at: string
+  updated_at: string
+  // Joined data
+  account?: BankAccount
+}
+
+export interface SpendingByCategory {
+  category: string
+  total: number
+  count: number
+  percentage: number
+}
+
+export interface CreditUtilization {
+  account_id: string
+  account_name: string
+  mask: string | null
+  balance_current: number
+  balance_limit: number
+  utilization_percent: number
+  institution_name: string
+  logo_url: string | null
+  primary_color: string | null
+}
+
+// Sync transactions from Plaid via Edge Function
+export async function syncTransactions(
+  connectionId?: string
+): Promise<{ success: boolean; transactions_synced?: number; error?: string }> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    return { success: false, error: 'Not authenticated' }
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('sync-transactions', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: connectionId ? { connection_id: connectionId } : {},
+    })
+
+    if (error) {
+      console.error('Sync transactions error:', error)
+      return { success: false, error: error.message }
+    }
+
+    return {
+      success: true,
+      transactions_synced: data?.transactions_synced || 0,
+    }
+  } catch (err) {
+    console.error('Sync transactions exception:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// Get transactions for a user (last 30 days by default)
+export async function getTransactions(
+  userId: string,
+  options?: {
+    startDate?: string
+    endDate?: string
+    accountId?: string
+    category?: string
+    limit?: number
+  }
+): Promise<Transaction[]> {
+  const { startDate, endDate, accountId, category, limit = 100 } = options || {}
+
+  // Default to last 30 days
+  const defaultStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const defaultEndDate = new Date().toISOString().split('T')[0]
+
+  let query = supabase
+    .from('transactions')
+    .select(`
+      *,
+      account:bank_accounts(
+        id, name, mask, type, subtype,
+        connection:bank_connections(institution_name, logo_url, primary_color)
+      )
+    `)
+    .eq('user_id', userId)
+    .gte('date', startDate || defaultStartDate)
+    .lte('date', endDate || defaultEndDate)
+    .order('date', { ascending: false })
+    .limit(limit)
+
+  if (accountId) {
+    query = query.eq('account_id', accountId)
+  }
+
+  if (category) {
+    query = query.eq('primary_category', category)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('Error fetching transactions:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Get spending grouped by category
+export async function getSpendingByCategory(
+  userId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<SpendingByCategory[]> {
+  // Default to last 30 days
+  const defaultStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const defaultEndDate = new Date().toISOString().split('T')[0]
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('primary_category, amount')
+    .eq('user_id', userId)
+    .gte('date', startDate || defaultStartDate)
+    .lte('date', endDate || defaultEndDate)
+    .gt('amount', 0) // Only expenses (positive amounts in Plaid = money out)
+
+  if (error) {
+    console.error('Error fetching spending by category:', error)
+    return []
+  }
+
+  // Group by category
+  const categoryMap = new Map<string, { total: number; count: number }>()
+  let grandTotal = 0
+
+  for (const tx of data || []) {
+    const category = tx.primary_category || 'Other'
+    const existing = categoryMap.get(category) || { total: 0, count: 0 }
+    existing.total += tx.amount
+    existing.count += 1
+    categoryMap.set(category, existing)
+    grandTotal += tx.amount
+  }
+
+  // Convert to array with percentages
+  const result: SpendingByCategory[] = []
+  for (const [category, { total, count }] of categoryMap) {
+    result.push({
+      category,
+      total,
+      count,
+      percentage: grandTotal > 0 ? (total / grandTotal) * 100 : 0,
+    })
+  }
+
+  // Sort by total descending
+  result.sort((a, b) => b.total - a.total)
+
+  return result
+}
+
+// Get credit utilization for all credit accounts
+export async function getCreditUtilization(userId: string): Promise<CreditUtilization[]> {
+  const { data, error } = await supabase
+    .from('bank_accounts')
+    .select(`
+      id,
+      name,
+      mask,
+      balance_current,
+      balance_limit,
+      connection:bank_connections(institution_name, logo_url, primary_color)
+    `)
+    .eq('user_id', userId)
+    .eq('type', 'credit')
+    .not('balance_limit', 'is', null)
+
+  if (error) {
+    console.error('Error fetching credit utilization:', error)
+    return []
+  }
+
+  return (data || []).map((acc) => {
+    const current = acc.balance_current || 0
+    const limit = acc.balance_limit || 1
+    const conn = acc.connection as { institution_name: string; logo_url: string | null; primary_color: string | null } | null
+
+    return {
+      account_id: acc.id,
+      account_name: acc.name,
+      mask: acc.mask,
+      balance_current: current,
+      balance_limit: limit,
+      utilization_percent: Math.min((current / limit) * 100, 100),
+      institution_name: conn?.institution_name || 'Unknown',
+      logo_url: conn?.logo_url || null,
+      primary_color: conn?.primary_color || null,
+    }
+  }).sort((a, b) => b.utilization_percent - a.utilization_percent)
 }

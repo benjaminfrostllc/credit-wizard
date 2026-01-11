@@ -6,7 +6,10 @@ import { ProgressBar } from '../components/ProgressBar'
 import { SectionInfoButton } from '../components/SectionInfoButton'
 import { SectionSurvey } from '../components/SectionSurvey'
 import { PlaidLinkModal } from '../components/PlaidLinkModal'
+import { SpendingTab } from '../components/SpendingTab'
 import { getBankConnections, getBankAccounts, type BankConnection, type BankAccount } from '../lib/supabase'
+
+type TabType = 'banks' | 'spending'
 
 // Bank definitions with their task ID prefixes
 const banks = [
@@ -29,6 +32,7 @@ const banks = [
 
 export default function Treasury() {
   const { treasury, toggleTask, addComment, refreshTasks, user } = useApp()
+  const [activeTab, setActiveTab] = useState<TabType>('banks')
   const [showSurvey, setShowSurvey] = useState(false)
   const [showPlaidModal, setShowPlaidModal] = useState(false)
   const [connections, setConnections] = useState<BankConnection[]>([])
@@ -188,6 +192,38 @@ export default function Treasury() {
           )}
         </div>
 
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab('banks')}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+              activeTab === 'banks'
+                ? 'bg-vault-accent text-white'
+                : 'bg-vault-purple/30 text-gray-400 hover:text-white hover:bg-vault-purple/50'
+            }`}
+          >
+            Banks
+          </button>
+          <button
+            onClick={() => setActiveTab('spending')}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+              activeTab === 'spending'
+                ? 'bg-vault-accent text-white'
+                : 'bg-vault-purple/30 text-gray-400 hover:text-white hover:bg-vault-purple/50'
+            }`}
+          >
+            Spending
+          </button>
+        </div>
+
+        {/* Spending Tab Content */}
+        {activeTab === 'spending' && user && (
+          <SpendingTab userId={user.id} />
+        )}
+
+        {/* Banks Tab Content */}
+        {activeTab === 'banks' && (
+          <>
         {/* Overall Progress */}
         <div className="rounded-2xl p-6 mb-6" style={{ background: 'linear-gradient(145deg, #1a1525 0%, #12101a 100%)', border: '1px solid rgba(192, 192, 192, 0.2)' }}>
           <div className="flex items-center gap-3 mb-4">
@@ -367,6 +403,8 @@ export default function Treasury() {
             <span className="text-vault-accent font-semibold">Pro Tip:</span> Having multiple bank relationships increases your funding options and shows financial stability to lenders. Aim for 3-5 major bank relationships.
           </p>
         </div>
+          </>
+        )}
       </div>
 
       <SectionSurvey

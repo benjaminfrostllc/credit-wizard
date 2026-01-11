@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Credit Wizard - Financial Ascent</title>
+    <meta name="description" content="Download the Credit Wizard PWA and get a clear, confident view of balances, debt, and net worth." />
+    <link rel="manifest" href="/manifest.json" />
+    <style>
+      :root {
+        --bg: #0b0c12;
+        --bg-2: #151826;
+        --panel: rgba(20, 22, 35, 0.85);
+        --panel-2: rgba(26, 30, 48, 0.85);
+        --text: #e5e7eb;
+        --muted: #9aa3b2;
+        --accent: #b794ff;
+        --accent-2: #7df0ff;
+        --line: rgba(148, 163, 184, 0.2);
+        --glow: rgba(183, 148, 255, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Courier New", Courier, monospace;
+        color: var(--text);
+        background:
+          radial-gradient(900px 400px at 50% -10%, rgba(183, 148, 255, 0.32), transparent 60%),
+          radial-gradient(700px 300px at 80% 10%, rgba(125, 240, 255, 0.22), transparent 60%),
+          linear-gradient(180deg, #0a0b12 0%, #101321 60%, #0b0c12 100%);
+      }
+
+      .page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 28px 6vw 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        font-size: 12px;
+      }
+
+      main {
+        padding: 28px 6vw 60px;
+        display: grid;
+        gap: 36px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 26px;
+        place-items: center;
+        text-align: center;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(28px, 3.6vw, 48px);
+        letter-spacing: 3px;
+        color: #e0e7ff;
+        text-shadow: 0 0 24px rgba(183, 148, 255, 0.35);
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 640px;
+        line-height: 1.6;
+      }
+
+      .cta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .btn {
+        padding: 12px 20px;
+        border-radius: 10px;
+        border: 1px solid var(--accent);
+        text-decoration: none;
+        color: #0b0c12;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        box-shadow: 0 14px 30px var(--glow);
+      }
+
+      .btn.secondary {
+        background: transparent;
+        color: var(--accent);
+      }
+
+      .grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid rgba(183, 148, 255, 0.35);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 18px 50px rgba(5, 8, 20, 0.7);
+        backdrop-filter: blur(10px);
+      }
+
+      .panel h3 {
+        margin: 0 0 10px;
+        text-transform: uppercase;
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 1px;
+      }
+
+      .stat-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+      }
+
+      .stat {
+        background: var(--panel-2);
+        border-radius: 14px;
+        padding: 12px 14px;
+        border: 1px solid rgba(183, 148, 255, 0.25);
+      }
+
+      .stat span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .stat strong {
+        font-size: 18px;
+      }
+
+      .feature {
+        background: rgba(19, 22, 34, 0.9);
+        border: 1px solid rgba(183, 148, 255, 0.2);
+        border-radius: 16px;
+        padding: 16px;
+      }
+
+      .feature h4 {
+        margin: 0 0 8px;
+      }
+
+      .feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .chart {
+        display: grid;
+        gap: 10px;
+        min-height: 210px;
+        align-content: start;
+      }
+
+      .chart svg {
+        width: 100%;
+        height: 120px;
+      }
+
+      .bars {
+        display: grid;
+        gap: 8px;
+      }
+
+      .bar {
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.2);
+        overflow: hidden;
+      }
+
+      .bar span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      }
+
+      .steps {
+        display: grid;
+        gap: 12px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 26px 1fr;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .step span {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(155, 123, 255, 0.2);
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      footer {
+        padding: 20px 6vw 40px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div>Credit Wizard</div>
+        <div>Financial Ascent</div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <h1>FINANCIAL ASCENT</h1>
+          <p>
+            Your journey to financial freedom starts here. Credit Wizard collects every balance,
+            credit card, and document into a single PWA so you can track net worth, utilization,
+            disputes, and timelines without the chaos.
+          </p>
+          <div class="cta">
+            <a class="btn" href="/">Get the PWA</a>
+            <a class="btn secondary" href="#overview">Explore the vault</a>
+          </div>
+        </section>
+
+        <section id="overview" class="panel">
+          <h3>Vault Snapshot</h3>
+          <div class="stat-row">
+            <div class="stat">
+              <span>Total Balance</span>
+              <strong>$35,930.00</strong>
+            </div>
+            <div class="stat">
+              <span>Total Debt</span>
+              <strong>$12,440.00</strong>
+            </div>
+            <div class="stat">
+              <span>Net Worth</span>
+              <strong>$23,490.00</strong>
+            </div>
+            <div class="stat">
+              <span>Carry Vault</span>
+              <strong>Documents ready</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panel chart">
+            <h3>Momentum Graph</h3>
+            <svg viewBox="0 0 240 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 95 L50 70 L90 80 L130 45 L170 55 L210 25" stroke="#9b7bff" stroke-width="3" />
+              <path d="M10 110 L50 92 L90 98 L130 80 L170 85 L210 70" stroke="#6ee7ff" stroke-width="2" />
+            </svg>
+            <p style="color: var(--muted); font-size: 12px;">Track balances and debt trends over time.</p>
+          </div>
+          <div class="panel chart">
+            <h3>Utilization (healthy)</h3>
+            <div class="bars">
+              <div class="bar"><span style="width:8%"></span></div>
+              <div class="bar"><span style="width:5%"></span></div>
+              <div class="bar"><span style="width:38%"></span></div>
+            </div>
+            <p style="color: var(--muted); font-size: 12px;">
+              Ideal: 5-10% personal (0% best). Business stays under 50%.
+            </p>
+          </div>
+          <div class="panel chart">
+            <h3>Business Roadmap</h3>
+            <div style="display:grid; gap:10px;">
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:12px; color: var(--muted); margin-bottom:4px;">
+                  <span>Social presence</span><span>62%</span>
+                </div>
+                <div style="height:10px; background: rgba(139,92,246,0.25); border-radius: 999px; overflow:hidden;">
+                  <div style="width:62%; height:100%; background:#8b5cf6;"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:12px; color: var(--muted); margin-bottom:4px;">
+                  <span>Business profile</span><span>48%</span>
+                </div>
+                <div style="height:10px; background: rgba(99,102,241,0.25); border-radius: 999px; overflow:hidden;">
+                  <div style="width:48%; height:100%; background:#6366f1;"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:12px; color: var(--muted); margin-bottom:4px;">
+                  <span>Credit-ready docs</span><span>71%</span>
+                </div>
+                <div style="height:10px; background: rgba(125,211,252,0.25); border-radius: 999px; overflow:hidden;">
+                  <div style="width:71%; height:100%; background:#7dd3fc;"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:12px; color: var(--muted); margin-bottom:4px;">
+                  <span>Funding readiness</span><span>34%</span>
+                </div>
+                <div style="height:10px; background: rgba(167,139,250,0.25); border-radius: 999px; overflow:hidden;">
+                  <div style="width:34%; height:100%; background:#a78bfa;"></div>
+                </div>
+              </div>
+              <p style="color: var(--muted); font-size: 12px;">
+                Business roadmap with real milestones you can build on.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="feature">
+            <h4>Unified accounts</h4>
+            <p>Pull checking, savings, and credit into one live dashboard.</p>
+          </div>
+          <div class="feature">
+            <h4>Net worth clarity</h4>
+            <p>Balance minus debt with instant visual feedback.</p>
+          </div>
+          <div class="feature">
+            <h4>Carry documents</h4>
+            <p>Store IDs and statements for verification moments.</p>
+          </div>
+          <div class="feature">
+            <h4>Utilization guardrails</h4>
+            <p>Know your usage and protect your score.</p>
+          </div>
+          <div class="feature">
+            <h4>Dispute center</h4>
+            <p>Collect evidence and track steps without the scramble.</p>
+          </div>
+          <div class="feature">
+            <h4>Calendar focus</h4>
+            <p>Due dates, reviews, and milestones in one timeline.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Install in seconds</h3>
+          <div class="steps">
+            <div class="step"><span>1</span><div>Tap Get the PWA and open Credit Wizard.</div></div>
+            <div class="step"><span>2</span><div>Add to home screen from your browser.</div></div>
+            <div class="step"><span>3</span><div>Launch instantly with offline-ready access.</div></div>
+          </div>
+        </section>
+      </main>
+
+      <footer>Credit Wizard PWA - Your financial ascent, mapped clearly.</footer>
+    </div>
+  </body>
+</html>

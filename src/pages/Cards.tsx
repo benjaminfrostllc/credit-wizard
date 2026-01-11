@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, getBankAccounts, getBankConnections, type BankAccount, type BankConnection } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
+import { CardMarketplace } from '../components/CardMarketplace'
 
 interface CarryItem {
   id: string
@@ -73,8 +74,11 @@ function getDaysUntilDue(dueDate: number): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 }
 
+type TabType = 'my-cards' | 'marketplace'
+
 function Cards() {
   const { user } = useApp()
+  const [activeTab, setActiveTab] = useState<TabType>('my-cards')
   const [cards, setCards] = useState<CreditCard[]>([])
   const [linkedCards, setLinkedCards] = useState<LinkedCard[]>([])
   const [plaidCreditAccounts, setPlaidCreditAccounts] = useState<BankAccount[]>([])
@@ -331,23 +335,58 @@ function Cards() {
     <div className="min-h-screen bg-vault-black pb-24">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-vault-black/95 backdrop-blur-lg border-b border-vault-silver/10 px-4 py-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'var(--font-pixel)' }}>
-              MY CARDS
+              CARDS
             </h1>
-            <p className="text-xs text-vault-silver-dark">Track your credit cards</p>
+            <p className="text-xs text-vault-silver-dark">
+              {activeTab === 'my-cards' ? 'Track your credit cards' : 'Find your next card'}
+            </p>
           </div>
+          {activeTab === 'my-cards' && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-colors"
+              style={{ background: 'linear-gradient(135deg, #9d8cff 0%, #7b68ee 100%)' }}
+            >
+              + Add Card
+            </button>
+          )}
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-2">
           <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-colors"
-            style={{ background: 'linear-gradient(135deg, #9d8cff 0%, #7b68ee 100%)' }}
+            onClick={() => setActiveTab('my-cards')}
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'my-cards'
+                ? 'bg-vault-accent text-white'
+                : 'bg-vault-purple/30 text-vault-silver-dark hover:bg-vault-purple/50'
+            }`}
           >
-            + Add Card
+            My Cards
+          </button>
+          <button
+            onClick={() => setActiveTab('marketplace')}
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'marketplace'
+                ? 'bg-vault-accent text-white'
+                : 'bg-vault-purple/30 text-vault-silver-dark hover:bg-vault-purple/50'
+            }`}
+          >
+            Marketplace
           </button>
         </div>
       </header>
 
+      {/* Marketplace Tab */}
+      {activeTab === 'marketplace' && (
+        <CardMarketplace />
+      )}
+
+      {/* My Cards Tab */}
+      {activeTab === 'my-cards' && (
       <div className="p-4 space-y-4">
         {/* Summary Card */}
         <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg, #1a1525 0%, #12101a 100%)', border: '1px solid rgba(192, 192, 192, 0.2)' }}>
@@ -909,6 +948,7 @@ function Cards() {
           </div>
         )}
       </div>
+      )}
 
       {/* Add/Edit Card Modal */}
       {showAddModal && (

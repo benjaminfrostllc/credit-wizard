@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Credit Wizard - Mission Control</title>
+    <meta name="description" content="Outcome-focused landing page for the Credit Wizard PWA featuring dashboards and visual metrics." />
+    <link rel="manifest" href="/manifest.json" />
+    <style>
+      :root {
+        --bg: #0b0f19;
+        --panel: #141a2c;
+        --panel-2: #1a2136;
+        --text: #eef2ff;
+        --muted: #9ca3af;
+        --accent: #a855f7;
+        --accent-2: #38bdf8;
+        --line: rgba(148, 163, 184, 0.18);
+        --glow: rgba(168, 85, 247, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Verdana", Geneva, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(900px 420px at 15% -10%, rgba(168, 85, 247, 0.32), transparent 60%),
+          radial-gradient(700px 360px at 85% 0%, rgba(56, 189, 248, 0.22), transparent 60%),
+          linear-gradient(160deg, #0b0f19 0%, #121a2d 60%, #0b0f19 100%);
+      }
+
+      .page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 24px 6vw 0;
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 1px;
+      }
+
+      main {
+        padding: 24px 6vw 60px;
+        display: grid;
+        gap: 28px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 16px;
+        max-width: 760px;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(30px, 4vw, 46px);
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .cta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 12px 18px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #0b0f19;
+        box-shadow: 0 14px 30px var(--glow);
+      }
+
+      .btn.secondary {
+        background: transparent;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+      }
+
+      .metrics {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+
+      .metric {
+        background: var(--panel);
+        border-radius: 14px;
+        padding: 14px;
+        border: 1px solid rgba(168, 85, 247, 0.25);
+      }
+
+      .metric span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .metric strong {
+        font-size: 18px;
+      }
+
+      .dashboard {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+
+      .panel {
+        background: var(--panel-2);
+        border-radius: 16px;
+        padding: 16px;
+        border: 1px solid rgba(168, 85, 247, 0.18);
+      }
+
+      .panel h3 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--muted);
+      }
+
+      .bars {
+        display: grid;
+        gap: 8px;
+      }
+
+      .bars div {
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.2);
+        overflow: hidden;
+      }
+
+      .bars span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      }
+
+      .timeline {
+        display: grid;
+        gap: 12px;
+      }
+
+      .timeline-item {
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font-size: 13px;
+        border-bottom: 1px dashed rgba(148, 163, 184, 0.2);
+        padding-bottom: 8px;
+      }
+
+      footer {
+        color: var(--muted);
+        font-size: 12px;
+        padding-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div>Credit Wizard</div>
+        <div>Mission Control</div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <h1>Mission Control for your finances.</h1>
+          <p>
+            Credit Wizard is your PWA dashboard for balances, debt, utilization, disputes, and
+            carry documents. See the full picture, decide faster, and stay in control.
+          </p>
+          <div class="cta">
+            <a class="btn" href="/">Install the PWA</a>
+            <a class="btn secondary" href="#dashboards">See dashboards</a>
+          </div>
+        </section>
+
+        <section class="metrics">
+          <div class="metric">
+            <span>Total Balance</span>
+            <strong>$35,930.00</strong>
+          </div>
+          <div class="metric">
+            <span>Total Debt</span>
+            <strong>$12,440.00</strong>
+          </div>
+          <div class="metric">
+            <span>Net Worth</span>
+            <strong>$23,490.00</strong>
+          </div>
+          <div class="metric">
+            <span>Carry Ready</span>
+            <strong>Documents synced</strong>
+          </div>
+        </section>
+
+        <section id="dashboards" class="dashboard">
+          <div class="panel">
+            <h3>Balance trend</h3>
+            <svg viewBox="0 0 240 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 95 L45 70 L80 85 L120 50 L160 60 L210 30" stroke="#7c3aed" stroke-width="3" />
+              <path d="M10 110 L45 90 L80 96 L120 80 L160 84 L210 70" stroke="#22d3ee" stroke-width="2" />
+            </svg>
+            <p style="color: var(--muted); font-size: 12px;">Track balance and debt momentum over time.</p>
+          </div>
+          <div class="panel">
+            <h3>Utilization bands</h3>
+            <div class="bars">
+              <div><span style="width:8%"></span></div>
+              <div><span style="width:5%"></span></div>
+              <div><span style="width:35%"></span></div>
+            </div>
+            <p style="color: var(--muted); font-size: 12px;">
+              Personal ideal 5-10% (0% best). Business stays under 50%.
+            </p>
+          </div>
+          <div class="panel">
+            <h3>Dispute timeline</h3>
+            <div class="timeline">
+              <div class="timeline-item"><span>Document upload</span><span>Complete</span></div>
+              <div class="timeline-item"><span>Evidence review</span><span>In progress</span></div>
+              <div class="timeline-item"><span>Follow-up window</span><span>5 days</span></div>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>Carry vault</h3>
+            <p style="color: var(--muted); font-size: 13px;">
+              Store IDs, statements, and proof of address for quick verification and support.
+            </p>
+          </div>
+        </section>
+
+        <section class="dashboard">
+          <div class="panel">
+            <h3>Why it helps</h3>
+            <p style="color: var(--muted); font-size: 13px;">
+              Stop logging into multiple apps. Credit Wizard aggregates your financial reality
+              so you can make decisions from one trusted source.
+            </p>
+          </div>
+          <div class="panel">
+            <h3>PWA speed</h3>
+            <p style="color: var(--muted); font-size: 13px;">
+              Install once, open instantly, and stay ready even when offline.
+            </p>
+          </div>
+        </section>
+
+        <footer>Credit Wizard PWA - clarity, control, and confidence.</footer>
+      </main>
+    </div>
+  </body>
+</html>

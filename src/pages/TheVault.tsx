@@ -40,38 +40,6 @@ const documentTasks: DocumentTask[] = [
     maxSize: 10,
     required: true,
   },
-  {
-    id: 'vault_ein',
-    title: 'EIN Confirmation Letter',
-    description: 'Upload your IRS EIN confirmation letter (CP 575 or 147C). Required for business credit applications.',
-    acceptedTypes: 'image/*,.pdf',
-    maxSize: 10,
-    required: true,
-  },
-  {
-    id: 'vault_llc',
-    title: 'LLC Formation Documents',
-    description: 'Upload your Articles of Organization or Certificate of Formation from your state.',
-    acceptedTypes: 'image/*,.pdf',
-    maxSize: 10,
-    required: true,
-  },
-  {
-    id: 'vault_operating',
-    title: 'Operating Agreement',
-    description: 'Upload your signed LLC Operating Agreement outlining ownership and operations.',
-    acceptedTypes: 'image/*,.pdf',
-    maxSize: 10,
-    required: false,
-  },
-  {
-    id: 'vault_license',
-    title: 'Business License',
-    description: 'Upload your business license or permit if applicable to your industry.',
-    acceptedTypes: 'image/*,.pdf',
-    maxSize: 10,
-    required: false,
-  },
 ]
 
 export default function TheVault() {
@@ -337,6 +305,79 @@ export default function TheVault() {
             </p>
           </div>
         )}
+
+        {/* My Documents Section */}
+        <div className="bg-wizard-purple/30 rounded-2xl border-2 border-wizard-accent/30 p-4 mb-6">
+          <h3 className="text-sm font-bold text-wizard-accent mb-3 flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            MY DOCUMENTS
+            <span className="text-xs text-wizard-accent/70 font-normal">
+              ({Object.values(uploadedFiles).flat().length} files)
+            </span>
+          </h3>
+          {Object.values(uploadedFiles).flat().length === 0 ? (
+            <div className="text-center py-8 border-2 border-dashed border-wizard-accent/20 rounded-xl">
+              <span className="text-4xl mb-3 block">📁</span>
+              <p className="text-gray-400 text-sm">No documents uploaded yet</p>
+              <p className="text-gray-500 text-xs mt-1">Upload documents below to see them here</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {Object.entries(uploadedFiles).map(([taskId, files]) => {
+                const task = documentTasks.find(t => t.id === taskId)
+                return files.map((file) => (
+                  <div
+                    key={file.id}
+                    className="flex items-center gap-3 p-3 bg-wizard-dark/50 rounded-lg hover:bg-wizard-purple/20 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-wizard-accent/20 flex items-center justify-center">
+                      {file.file_type.includes('pdf') ? (
+                        <span className="text-lg">📄</span>
+                      ) : file.file_type.includes('image') ? (
+                        <span className="text-lg">🖼️</span>
+                      ) : (
+                        <span className="text-lg">📎</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{file.file_name}</p>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span>{task?.title || taskId}</span>
+                        <span>•</span>
+                        <span>{formatFileSize(file.file_size)}</span>
+                        <span>•</span>
+                        <span>{new Date(file.uploaded_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleViewFile(file)}
+                        className="p-2 text-wizard-accent hover:text-wizard-glow hover:bg-wizard-accent/10 rounded-lg transition-colors"
+                        title="View file"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(taskId, file)}
+                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Delete file"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Instructions */}
         <div className="bg-wizard-dark/50 rounded-xl border-2 border-wizard-indigo/30 p-4 mb-6">

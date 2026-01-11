@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Credit Wizard - Vault Expedition</title>
+    <meta name="description" content="Advanced, conversion-focused landing page for the Credit Wizard PWA with deep feature modules." />
+    <link rel="manifest" href="/manifest.json" />
+    <style>
+      :root {
+        --bg: #0c0d15;
+        --panel: rgba(18, 20, 32, 0.9);
+        --panel-2: rgba(23, 26, 42, 0.95);
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #f472b6;
+        --accent-2: #8b5cf6;
+        --line: rgba(148, 163, 184, 0.2);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Tahoma", Geneva, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(900px 400px at 20% -10%, rgba(139, 92, 246, 0.3), transparent 60%),
+          radial-gradient(700px 360px at 80% 0%, rgba(244, 114, 182, 0.2), transparent 60%),
+          linear-gradient(180deg, #0b0c13 0%, #14172a 60%, #0c0d15 100%);
+      }
+
+      .page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 24px 6vw 0;
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 1px;
+      }
+
+      main {
+        padding: 24px 6vw 60px;
+        display: grid;
+        gap: 28px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 16px;
+        align-items: center;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(30px, 4vw, 48px);
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .cta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 12px 18px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #0c0d15;
+      }
+
+      .btn.secondary {
+        background: transparent;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+      }
+
+      .panel {
+        background: var(--panel);
+        border-radius: 18px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        box-shadow: 0 18px 40px rgba(6, 8, 18, 0.5);
+      }
+
+      .stats {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+
+      .stat {
+        background: var(--panel-2);
+        border-radius: 12px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+      }
+
+      .stat span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .stat strong {
+        font-size: 18px;
+      }
+
+      .modules {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      .module {
+        background: var(--panel-2);
+        border-radius: 14px;
+        padding: 16px;
+        border: 1px solid var(--line);
+      }
+
+      .module h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+
+      .module p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .install {
+        display: grid;
+        gap: 10px;
+      }
+
+      .install-step {
+        display: grid;
+        grid-template-columns: 26px 1fr;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .install-step span {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: rgba(244, 114, 182, 0.2);
+        color: var(--accent);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+      }
+
+      footer {
+        color: var(--muted);
+        font-size: 12px;
+        padding-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div>Credit Wizard</div>
+        <div>Vault Expedition</div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div>
+            <h1>Install the vault. Master the climb.</h1>
+            <p>
+              Credit Wizard is a PWA built for people who want clarity fast. Track balances, debt,
+              utilization, disputes, carry documents, and timelines without leaving the vault.
+            </p>
+            <div class="cta">
+              <a class="btn" href="/">Get the PWA</a>
+              <a class="btn secondary" href="#modules">Explore modules</a>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="stats">
+              <div class="stat"><span>Total Balance</span><strong>$35,930.00</strong></div>
+              <div class="stat"><span>Total Debt</span><strong>$12,440.00</strong></div>
+              <div class="stat"><span>Net Worth</span><strong>$23,490.00</strong></div>
+              <div class="stat"><span>Carry Vault</span><strong>Synced</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="modules" class="modules">
+          <div class="module">
+            <h3>Bank aggregation</h3>
+            <p>One view for checking and savings, updated automatically.</p>
+          </div>
+          <div class="module">
+            <h3>Credit exposure</h3>
+            <p>Every credit card balance and limit combined in one deck.</p>
+          </div>
+          <div class="module">
+            <h3>Utilization guardrails</h3>
+            <p>Protect your score with limit vs. usage visibility.</p>
+          </div>
+          <div class="module">
+            <h3>Dispute command</h3>
+            <p>Organize evidence, notes, and follow-ups in a single place.</p>
+          </div>
+          <div class="module">
+            <h3>Carry documents</h3>
+            <p>Store IDs and statements so you are ready instantly.</p>
+          </div>
+          <div class="module">
+            <h3>Calendar control</h3>
+            <p>Track due dates, renewals, and milestone checks.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3 style="margin-top:0;">Install in three moves</h3>
+          <div class="install">
+            <div class="install-step"><span>1</span><div>Tap Get the PWA and open Credit Wizard.</div></div>
+            <div class="install-step"><span>2</span><div>Add to home screen from your browser menu.</div></div>
+            <div class="install-step"><span>3</span><div>Launch instantly with offline-ready access.</div></div>
+          </div>
+        </section>
+
+        <footer>Credit Wizard PWA - advanced clarity for modern finances.</footer>
+      </main>
+    </div>
+  </body>
+</html>

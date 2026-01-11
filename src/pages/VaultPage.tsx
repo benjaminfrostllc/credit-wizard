@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
-import { supabase, getBankAccounts, getBankConnections, type BankConnection, type BankAccount } from '../lib/supabase'
+import { supabase, getBankAccounts, getBankConnections, getFilesByUser, getFileUrl, deleteFile, type BankConnection, type BankAccount, type UploadedFile } from '../lib/supabase'
 import { PlaidLinkModal } from '../components/PlaidLinkModal'
 
 interface ManualCard {
@@ -10,17 +10,19 @@ interface ManualCard {
   connectionId: string
   inCarry: boolean
   isLocked: boolean
+  balance: number | null
 }
 
 interface CarryItem {
   id: string
-  type: 'plaid' | 'manual'
+  type: 'plaid' | 'manual' | 'document'
   name: string
   details: string
   color: string
   balance: number | null
-  sourceId: string // account_id for plaid, credit_card_id for manual
+  sourceId: string // account_id for plaid, credit_card_id for manual, file_id for document
   connectionId: string
+  fileId?: string // For documents
 }
 
 export default function VaultPage() {
@@ -45,6 +47,7 @@ export default function VaultPage() {
   const [selectedItem, setSelectedItem] = useState<CarryItem | null>(null)
   const [showItemDetailModal, setShowItemDetailModal] = useState(false)
   const [itemEditForm, setItemEditForm] = useState({ name: '', details: '' })
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
 
   // Load all data
   const loadData = useCallback(async () => {
@@ -52,12 +55,13 @@ export default function VaultPage() {
     setLoading(true)
 
     try {
-      const [connectionsData, accountsData, creditCardsResult, belongingsResult, allBelongingsResult] = await Promise.all([
+      const [connectionsData, accountsData, creditCardsResult, belongingsResult, allBelongingsResult, filesData] = await Promise.all([
         getBankConnections(user.id),
         getBankAccounts(user.id),
         supabase.from('credit_cards').select('*').eq('user_id', user.id),
         supabase.from('belongings').select('*').eq('user_id', user.id).eq('location', 'carry'),
         supabase.from('belongings').select('*').eq('user_id', user.id), // All belongings for vault items
+        getFilesByUser(user.id),
       ])
 
       console.log('[Vault] Loaded:', {
@@ -65,7 +69,10 @@ export default function VaultPage() {
         accounts: accountsData.length,
         manualCards: creditCardsResult.data?.length,
         carryItems: belongingsResult.data?.length,
+        uploadedFiles: filesData.length,
       })
+
+      setUploadedFiles(filesData)
 
       setConnections(connectionsData)
       setAccounts(accountsData)
@@ -80,6 +87,7 @@ export default function VaultPage() {
           connectionId: card.connection_id || '',
           inCarry: belonging?.location === 'carry',
           isLocked: card.is_locked || false,
+          balance: card.current_balance || null,
         }
       })
       setManualCards(cards)
@@ -114,6 +122,20 @@ export default function VaultPage() {
             balance: acc?.balance_current ?? null,
             sourceId: b.linked_account_id,
             connectionId: acc?.connection_id || '',
+          }
+        }
+        // Document
+        if (b.document_id) {
+          return {
+            id: b.id,
+            type: 'document' as const,
+            name: b.name,
+            details: b.details || '',
+            color: b.color || '#6366f1',
+            balance: null,
+            sourceId: b.document_id,
+            connectionId: '',
+            fileId: b.document_id,
           }
         }
         // Generic belonging
@@ -221,6 +243,7 @@ export default function VaultPage() {
           connectionId: data.connection_id,
           inCarry: false,
           isLocked: false,
+          balance: data.current_balance || null,
         }])
         setShowAddCardModal(false)
         setCardForm({ nickname: '', lastFour: '' })
@@ -296,6 +319,60 @@ export default function VaultPage() {
     } catch (err) {
       console.error('Error:', err)
     }
+  }
+
+  const handleAddDocumentToCarry = async (file: UploadedFile) => {
+    if (!user?.id) return
+
+    const taskLabels: Record<string, string> = {
+      'vault_id': 'Government ID',
+      'vault_ssn': 'Social Security Card',
+      'vault_address': 'Proof of Address',
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('belongings')
+        .insert({
+          user_id: user.id,
+          type: 'document',
+          name: taskLabels[file.task_id] || file.file_name,
+          details: file.file_name,
+          color: '#6366f1',
+          location: 'carry',
+          document_id: file.id,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error adding document to carry:', error)
+        alert(`Failed: ${error.message}`)
+        return
+      }
+
+      setCarryItems(prev => [...prev, {
+        id: data.id,
+        type: 'document',
+        name: taskLabels[file.task_id] || file.file_name,
+        details: file.file_name,
+        color: '#6366f1',
+        balance: null,
+        sourceId: file.id,
+        connectionId: '',
+        fileId: file.id,
+      }])
+    } catch (err) {
+      console.error('Error:', err)
+    }
+  }
+
+  const isDocumentInCarry = (fileId: string) => {
+    return carryItems.some(item => item.type === 'document' && item.sourceId === fileId)
+  }
+
+  const getDocumentCarryItem = (fileId: string) => {
+    return carryItems.find(item => item.type === 'document' && item.sourceId === fileId)
   }
 
   const handleRemoveFromCarry = async (carryItem: CarryItem) => {
@@ -667,7 +744,8 @@ export default function VaultPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {carryItems.map(item => {
-                const isGenericItem = !item.connectionId
+                const isGenericItem = !item.connectionId && item.type !== 'document'
+                const isDocument = item.type === 'document'
                 return (
                   <div
                     key={item.id}
@@ -679,14 +757,20 @@ export default function VaultPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleMoveItemToVault(item)
+                        if (isDocument) {
+                          handleRemoveFromCarry(item)
+                        } else {
+                          handleMoveItemToVault(item)
+                        }
                       }}
                       className="absolute -top-2 -right-2 w-6 h-6 bg-vault-black border border-vault-silver/20 rounded-full flex items-center justify-center text-vault-silver-dark hover:text-vault-error hover:border-vault-error/50 opacity-0 group-hover:opacity-100 transition-all text-xs"
                     >
                       ✕
                     </button>
                     <div className="flex items-center gap-2 mb-1">
-                      {isGenericItem ? (
+                      {isDocument ? (
+                        <span className="text-lg">📄</span>
+                      ) : isGenericItem ? (
                         <span className="text-lg">📦</span>
                       ) : (
                         <div
@@ -716,6 +800,113 @@ export default function VaultPage() {
           )}
         </div>
 
+        {/* MY DOCUMENTS Section */}
+        <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg, #1a1525 0%, #12101a 100%)', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xl">📄</span>
+            <h2 className="text-sm font-bold text-indigo-400" style={{ fontFamily: 'var(--font-pixel)' }}>
+              MY DOCUMENTS
+            </h2>
+            <span className="text-xs text-vault-silver-dark">({uploadedFiles.length})</span>
+          </div>
+
+          {uploadedFiles.length === 0 ? (
+            <div className="text-center py-8 border-2 border-dashed border-indigo-500/20 rounded-xl">
+              <span className="text-4xl mb-3 block">📁</span>
+              <p className="text-vault-silver-dark text-sm">No documents uploaded yet</p>
+              <p className="text-vault-silver-dark/70 text-xs mt-1">Upload documents in The Vault settings</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {uploadedFiles.map((file) => {
+                const taskLabels: Record<string, string> = {
+                  'vault_id': 'Government ID',
+                  'vault_ssn': 'Social Security',
+                  'vault_address': 'Proof of Address',
+                }
+                const inCarry = isDocumentInCarry(file.id)
+                const carryItem = getDocumentCarryItem(file.id)
+                return (
+                  <div
+                    key={file.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                      inCarry
+                        ? 'bg-vault-accent/20 border border-vault-accent/30'
+                        : 'bg-vault-black/50 hover:bg-vault-purple/20'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                      {file.file_type.includes('pdf') ? (
+                        <span className="text-lg">📄</span>
+                      ) : file.file_type.includes('image') ? (
+                        <span className="text-lg">🖼️</span>
+                      ) : (
+                        <span className="text-lg">📎</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{file.file_name}</p>
+                      <div className="flex items-center gap-2 text-xs text-vault-silver-dark">
+                        <span>{taskLabels[file.task_id] || file.task_id}</span>
+                        <span>•</span>
+                        <span>{(file.file_size / 1024).toFixed(1)} KB</span>
+                        <span>•</span>
+                        <span>{new Date(file.uploaded_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {inCarry ? (
+                        <button
+                          onClick={() => carryItem && handleRemoveFromCarry(carryItem)}
+                          className="text-xs text-vault-accent px-2 py-1 bg-vault-accent/10 rounded hover:bg-vault-accent/20 transition-colors"
+                        >
+                          In Carry ✓
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleAddDocumentToCarry(file)}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 px-2 py-1 hover:bg-indigo-500/10 rounded transition-colors"
+                        >
+                          + Carry
+                        </button>
+                      )}
+                      <button
+                        onClick={async () => {
+                          const url = await getFileUrl(file.file_path)
+                          if (url) window.open(url, '_blank')
+                        }}
+                        className="p-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                        title="View file"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm('Delete this document?')) {
+                            const success = await deleteFile(file.id, file.file_path)
+                            if (success) {
+                              setUploadedFiles(prev => prev.filter(f => f.id !== file.id))
+                            }
+                          }
+                        }}
+                        className="p-2 text-vault-silver-dark hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Delete file"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
         {/* YOUR BANKS Section */}
         <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(145deg, #1a1525 0%, #12101a 100%)', border: '1px solid rgba(192, 192, 192, 0.2)' }}>
           <div className="flex items-center gap-2 mb-4">
@@ -724,6 +915,69 @@ export default function VaultPage() {
               YOUR BANKS
             </h2>
           </div>
+
+          {/* Total Balance Summary */}
+          {connections.length > 0 && accounts.length > 0 && (
+            <div className="bg-vault-purple/20 rounded-xl p-4 mb-4 border border-vault-accent/20">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-xs text-vault-silver-dark">Total Available</p>
+                  <p className="text-xl font-bold text-white">
+                    ${accounts.filter(a => a.type === 'depository').reduce((sum, a) => sum + (a.balance_available || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-vault-silver-dark">Current Balance</p>
+                  <p className="text-xl font-bold text-vault-accent">
+                    ${accounts.filter(a => a.type === 'depository').reduce((sum, a) => sum + (a.balance_current || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Credit Card Debt Summary */}
+          {manualCards.length > 0 && (
+            <div className="bg-red-500/10 rounded-xl p-4 mb-4 border border-red-500/20">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-xs text-vault-silver-dark">Total Cards</p>
+                  <p className="text-lg font-bold text-white">{manualCards.length}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-vault-silver-dark">Total Credit Card Debt</p>
+                  <p className="text-xl font-bold text-red-400">
+                    ${manualCards.reduce((sum, card) => sum + (card.balance || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Net Worth Summary */}
+          {connections.length > 0 && (
+            (() => {
+              const totalBalance = accounts.filter(a => a.type === 'depository').reduce((sum, a) => sum + (a.balance_current || 0), 0)
+              const totalDebt = manualCards.reduce((sum, card) => sum + (card.balance || 0), 0)
+              const netWorth = totalBalance - totalDebt
+              const isPositive = netWorth >= 0
+              return (
+                <div className={`rounded-xl p-4 mb-4 border ${isPositive ? 'bg-green-500/10 border-green-500/20' : 'bg-orange-500/10 border-orange-500/20'}`}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-xs text-vault-silver-dark">Net Worth</p>
+                      <p className="text-xs text-vault-silver-dark/70">Balance - Debt</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-2xl font-bold ${isPositive ? 'text-green-400' : 'text-orange-400'}`}>
+                        {isPositive ? '' : '-'}${Math.abs(netWorth).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()
+          )}
 
           {connections.length === 0 ? (
             <div className="text-center py-8">
@@ -865,9 +1119,14 @@ export default function VaultPage() {
                         {/* Checking & Savings Section */}
                         {depositoryAccounts.length > 0 && (
                           <div>
-                            <h3 className="text-xs font-bold text-blue-400 uppercase mb-2 flex items-center gap-2">
-                              <span>🏦</span> Checking & Savings ({depositoryAccounts.length})
-                            </h3>
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-xs font-bold text-blue-400 uppercase flex items-center gap-2">
+                                <span>🏦</span> Checking & Savings ({depositoryAccounts.length})
+                              </h3>
+                              <span className="text-sm font-bold text-white">
+                                ${depositoryAccounts.reduce((sum, acc) => sum + (acc.balance_current || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
                             <div className="space-y-2">
                               {depositoryAccounts.map(acc => {
                                 const inCarry = isInCarry('plaid', acc.id)
