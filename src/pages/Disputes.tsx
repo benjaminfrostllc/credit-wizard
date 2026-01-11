@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import { MilestoneTracker, disputeSteps } from '../components/MilestoneTracker'
 
 interface DisputeCase {
   id: string
@@ -327,12 +328,36 @@ export default function Disputes() {
   const [loading, setLoading] = useState(true)
   const [selectedCase, setSelectedCase] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'items' | 'timeline'>('overview')
+  const [docsUploaded, setDocsUploaded] = useState(false)
+  const [creditReportUploaded, setCreditReportUploaded] = useState(false)
 
   useEffect(() => {
     if (user?.id) {
       fetchDisputeData()
+      checkDocumentStatus()
     }
   }, [user?.id])
+
+  const checkDocumentStatus = async () => {
+    if (!user?.id) return
+    try {
+      const { data: files } = await supabase
+        .from('uploaded_files')
+        .select('document_type')
+        .eq('user_id', user.id)
+
+      if (files && files.length > 0) {
+        const types = files.map(f => f.document_type)
+        const hasRequiredDocs = types.includes('government_id') &&
+                                types.includes('social_security') &&
+                                types.includes('proof_of_address')
+        setDocsUploaded(hasRequiredDocs)
+        setCreditReportUploaded(types.includes('credit_report'))
+      }
+    } catch (error) {
+      console.error('Error checking document status:', error)
+    }
+  }
 
   const fetchDisputeData = async () => {
     if (!user?.id) return
@@ -404,6 +429,68 @@ export default function Disputes() {
   // Default next steps if not provided
   const nextSteps = selectedCaseData?.next_steps || []
 
+  // Calculate milestone progress
+  const calculateMilestones = () => {
+    const completed: number[] = []
+    let current = 1
+
+    // Step 1: Documents uploaded
+    if (docsUploaded) {
+      completed.push(1)
+      current = 2
+    }
+
+    // Step 2: Credit report received
+    if (creditReportUploaded) {
+      completed.push(2)
+      current = 3
+    }
+
+    // Step 3: AI Analysis (has case with items)
+    if (cases.length > 0 && items.length > 0) {
+      completed.push(3)
+      current = 4
+    }
+
+    // Step 4: Letters generated (has rounds in draft/review)
+    const hasGeneratedLetters = rounds.some(r => ['draft', 'review'].includes(r.status))
+    if (hasGeneratedLetters || rounds.some(r => r.status === 'sent')) {
+      completed.push(4)
+      current = 5
+    }
+
+    // Step 5: Letters sent
+    const sentRounds = rounds.filter(r => r.status === 'sent' || r.status === 'awaiting_response' || r.status === 'complete')
+    if (sentRounds.length > 0) {
+      completed.push(5)
+      current = 6
+    }
+
+    // Step 6: Awaiting response (letters sent, waiting for response)
+    const awaitingRounds = rounds.filter(r => r.status === 'awaiting_response')
+    if (awaitingRounds.length > 0 || rounds.some(r => r.status === 'complete')) {
+      completed.push(6)
+      current = 7
+    }
+
+    // Step 7: Responses received
+    const completedRounds = rounds.filter(r => r.status === 'complete')
+    if (completedRounds.length > 0) {
+      completed.push(7)
+      current = 8
+    }
+
+    // Step 8: Items resolved (all items deleted or case closed)
+    if (totalItems > 0 && deletedItems === totalItems) {
+      completed.push(8)
+      current = 8 // Stay on 8, all done
+    }
+
+    return { completed, current }
+  }
+
+  const milestones = calculateMilestones()
+
   if (loading) {
     return (
       <div className="min-h-screen p-4 flex items-center justify-center">
@@ -434,34 +521,80 @@ export default function Disputes() {
             className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3"
             style={{ fontFamily: 'var(--font-pixel)' }}
           >
-            <span className="text-4xl">🛡️</span>
+            <span className="text-4xl">⚔️</span>
             DISPUTE CENTER
           </h1>
           <p className="text-gray-400 mt-2">Track your credit repair progress in real-time</p>
         </div>
 
-        {cases.length === 0 ? (
+        {/* Milestone Tracker - Always visible */}
+        <div
+          className="rounded-2xl p-6 mb-6"
+          style={{ background: 'linear-gradient(145deg, #1a1525 0%, #12101a 100%)', border: '1px solid rgba(212, 175, 55, 0.3)' }}
+        >
+          <h3 className="text-sm font-semibold text-gold mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-pixel)' }}>
+            <span>🎯</span> YOUR JOURNEY
+          </h3>
+          <MilestoneTracker
+            steps={disputeSteps}
+            currentStep={milestones.current}
+            completedSteps={milestones.completed}
+          />
+        </div>
+
+        {/* Current Step Action Card */}
+        {!loading && milestones.current <= 2 && (
+          <div
+            className="rounded-2xl p-6 mb-6"
+            style={{ background: 'linear-gradient(145deg, rgba(212, 175, 55, 0.1) 0%, rgba(18, 16, 26, 0.9) 100%)', border: '1px solid rgba(212, 175, 55, 0.4)' }}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-r from-gold to-yellow-500 flex items-center justify-center text-2xl animate-pulse shadow-lg shadow-gold/30">
+                {milestones.current === 1 ? '📄' : '📊'}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-pixel)' }}>
+                  {milestones.current === 1 ? 'UPLOAD YOUR DOCUMENTS' : 'UPLOAD CREDIT REPORT'}
+                </h3>
+                <p className="text-gray-400 mt-1 text-sm">
+                  {milestones.current === 1
+                    ? 'Start by uploading your Government ID, Social Security Card, and Proof of Address to verify your identity.'
+                    : 'Upload your credit report so our AI can analyze it and identify negative items to dispute.'}
+                </p>
+                <Link
+                  to="/vault"
+                  className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark font-semibold rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  {milestones.current === 1 ? 'Upload Documents' : 'Upload Credit Report'}
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {cases.length === 0 && milestones.current > 2 ? (
           <div
             className="rounded-2xl p-8 text-center"
             style={{ background: 'linear-gradient(145deg, #1a1525 0%, #12101a 100%)', border: '1px solid rgba(212, 175, 55, 0.2)' }}
           >
-            <div className="text-6xl mb-4">📋</div>
+            <div className="text-6xl mb-4">🔍</div>
             <h2 className="text-xl font-semibold text-white mb-2" style={{ fontFamily: 'var(--font-pixel)' }}>
-              No Active Disputes
+              ANALYZING YOUR REPORT
             </h2>
-            <p className="text-gray-400 mb-6 max-w-md mx-auto">
-              Your dispute journey hasn't started yet. Upload your credit report to The Vault to begin the credit repair process.
+            <p className="text-gray-400 mb-4 max-w-md mx-auto">
+              Our AI is analyzing your credit report to identify negative items and build your dispute strategy. This usually takes a few minutes.
             </p>
-            <Link
-              to="/the-vault"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark font-semibold rounded-lg hover:opacity-90 transition-opacity"
-            >
-              Upload Credit Report
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
+            <div className="flex items-center justify-center gap-2 text-gold">
+              <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
           </div>
+        ) : cases.length === 0 ? (
+          null
         ) : (
           <>
             {/* Case Selector (if multiple cases) */}
