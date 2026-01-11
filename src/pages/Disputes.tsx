@@ -376,26 +376,58 @@ export default function Disputes() {
 
       // If we have cases, fetch items and rounds
       if (casesData && casesData.length > 0) {
-        const caseIds = casesData.map(c => c.id)
+        const caseUuids = casesData.map(c => c.id)
+        const caseStringIds = casesData.map(c => c.case_id).filter(Boolean)
 
-        // Fetch items
-        const { data: itemsData, error: itemsError } = await supabase
+        // Fetch items - try both UUID and string case_id
+        let itemsData: DisputeItem[] = []
+
+        // First try with UUID
+        const { data: itemsByUuid, error: itemsError1 } = await supabase
           .from('dispute_items')
           .select('*')
-          .in('case_id', caseIds)
+          .in('case_id', caseUuids)
 
-        if (itemsError) throw itemsError
-        setItems(itemsData || [])
+        if (!itemsError1 && itemsByUuid && itemsByUuid.length > 0) {
+          itemsData = itemsByUuid
+        } else if (caseStringIds.length > 0) {
+          // Try with string case_id
+          const { data: itemsByString, error: itemsError2 } = await supabase
+            .from('dispute_items')
+            .select('*')
+            .in('case_id', caseStringIds)
 
-        // Fetch rounds
-        const { data: roundsData, error: roundsError } = await supabase
+          if (!itemsError2 && itemsByString) {
+            itemsData = itemsByString
+          }
+        }
+
+        setItems(itemsData)
+
+        // Fetch rounds - try both UUID and string case_id
+        let roundsData: DisputeRound[] = []
+
+        const { data: roundsByUuid, error: roundsError1 } = await supabase
           .from('dispute_rounds')
           .select('*')
-          .in('case_id', caseIds)
+          .in('case_id', caseUuids)
           .order('started_at', { ascending: false })
 
-        if (roundsError) throw roundsError
-        setRounds(roundsData || [])
+        if (!roundsError1 && roundsByUuid && roundsByUuid.length > 0) {
+          roundsData = roundsByUuid
+        } else if (caseStringIds.length > 0) {
+          const { data: roundsByString, error: roundsError2 } = await supabase
+            .from('dispute_rounds')
+            .select('*')
+            .in('case_id', caseStringIds)
+            .order('started_at', { ascending: false })
+
+          if (!roundsError2 && roundsByString) {
+            roundsData = roundsByString
+          }
+        }
+
+        setRounds(roundsData)
 
         // Select first case by default
         if (!selectedCase && casesData.length > 0) {
@@ -575,27 +607,7 @@ export default function Disputes() {
           </div>
         )}
 
-        {cases.length === 0 && milestones.current > 2 ? (
-          <div
-            className="rounded-2xl p-8 text-center"
-            style={{ background: 'linear-gradient(145deg, #1a1525 0%, #12101a 100%)', border: '1px solid rgba(212, 175, 55, 0.2)' }}
-          >
-            <div className="text-6xl mb-4">🔍</div>
-            <h2 className="text-xl font-semibold text-white mb-2" style={{ fontFamily: 'var(--font-pixel)' }}>
-              ANALYZING YOUR REPORT
-            </h2>
-            <p className="text-gray-400 mb-4 max-w-md mx-auto">
-              Our AI is analyzing your credit report to identify negative items and build your dispute strategy. This usually takes a few minutes.
-            </p>
-            <div className="flex items-center justify-center gap-2 text-gold">
-              <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-2 h-2 bg-gold rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-          </div>
-        ) : cases.length === 0 ? (
-          null
-        ) : (
+        {cases.length > 0 && (
           <>
             {/* Case Selector (if multiple cases) */}
             {cases.length > 1 && (
