@@ -561,12 +561,13 @@ export function SpendingTab({ userId }: SpendingTabProps) {
     setCategoryActionError(null)
     const result = await createCategory(userId, { name, color: newCategoryColor })
 
-    if (!result.category) {
+    const newCategory = result.category
+    if (!newCategory) {
       setCategoryActionError(result.error || 'Failed to create category')
       return
     }
 
-    setCategories((prev) => [...prev, result.category].sort((a, b) => a.name.localeCompare(b.name)))
+    setCategories((prev) => [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name)))
     setNewCategoryName('')
     setNewCategoryColor(DEFAULT_CATEGORY_COLORS['Other'])
   }
