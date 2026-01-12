@@ -1884,7 +1884,9 @@ export interface Transaction {
   name: string
   merchant_name: string | null
   amount: number
+  currency: string | null
   currency_code: string
+  category_hint: string | null
   category: string[]
   category_id: string | null
   primary_category: string
@@ -1896,6 +1898,7 @@ export interface Transaction {
   location_city: string | null
   location_region: string | null
   location_country: string | null
+  raw_json?: Record<string, unknown> | null
   created_at: string
   updated_at: string
   // Joined data
@@ -2001,6 +2004,25 @@ export async function getTransactions(
   }
 
   return data || []
+}
+
+// Get spending grouped by category for a month (YYYY-MM)
+export async function getMonthlySpend(
+  userId: string,
+  month: string
+): Promise<SpendingByCategory[]> {
+  const [year, monthPart] = month.split('-')
+  if (!year || !monthPart) {
+    console.error('Invalid month format, expected YYYY-MM')
+    return []
+  }
+
+  const startDate = `${year}-${monthPart}-01`
+  const start = new Date(`${startDate}T00:00:00Z`)
+  const nextMonth = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1))
+  const endDate = nextMonth.toISOString().split('T')[0]
+
+  return getSpendingByCategory(userId, startDate, endDate)
 }
 
 // Get spending grouped by category
