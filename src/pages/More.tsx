@@ -96,6 +96,13 @@ function More() {
       path: '/calendar',
     },
     {
+      id: 'subscriptions',
+      icon: '🔁',
+      label: 'Subscriptions',
+      description: 'Track recurring bills and reminders',
+      path: '/subscriptions',
+    },
+    {
       id: 'notifications',
       icon: '🔔',
       label: 'Notifications',
