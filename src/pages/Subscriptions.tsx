@@ -9,7 +9,7 @@ import {
   type RecurringSeries,
 } from '../lib/recurring'
 import { seededTransactions } from '../data/seedTransactions'
-import { sendN8nEvent } from '../services/n8n'
+import { sendN8nEvent, type N8nEventPayload } from '../services/n8n'
 
 const classificationStorageKey = 'subscription-classifications'
 
@@ -76,7 +76,14 @@ export default function Subscriptions() {
       return
     }
 
-    const results = await Promise.all(events.map((event) => sendN8nEvent(event)))
+    const results = await Promise.all(
+      events.map((reminderEvent) => {
+        const payload: N8nEventPayload = Object.fromEntries(
+          Object.entries(reminderEvent).map(([k, v]) => [k, String(v)])
+        )
+        return sendN8nEvent(payload)
+      })
+    )
     const successCount = results.filter((result) => result.success).length
 
     if (successCount === events.length) {
