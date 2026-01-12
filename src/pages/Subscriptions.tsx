@@ -80,7 +80,7 @@ export default function Subscriptions() {
       events.map((reminderEvent) => {
         const payload: N8nEventPayload = Object.fromEntries(
           Object.entries(reminderEvent).map(([k, v]) => [k, String(v)])
-        )
+        ) as N8nEventPayload
         return sendN8nEvent(payload)
       })
     )
