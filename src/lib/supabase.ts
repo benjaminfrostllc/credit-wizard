@@ -2020,7 +2020,7 @@ export async function getMonthlySpend(
   const startDate = `${year}-${monthPart}-01`
   const start = new Date(`${startDate}T00:00:00Z`)
   const nextMonth = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1))
-  const endDate = nextMonth.toISOString().split('T')[0]
+  const endDate = new Date(nextMonth.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   return getSpendingByCategory(userId, startDate, endDate)
 }
