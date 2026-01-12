@@ -590,6 +590,7 @@ export function SpendingTab({ userId }: SpendingTabProps) {
         .map((category) =>
           category.id === categoryId ? { ...category, name: trimmedName, color } : category
         )
+        .filter((category): category is Category => Boolean(category))
         .sort((a, b) => a.name.localeCompare(b.name))
     )
   }
