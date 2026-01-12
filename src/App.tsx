@@ -16,6 +16,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import Cards from './pages/Cards'
 import VaultPage from './pages/VaultPage'
 import More from './pages/More'
+import BudgetingDashboard from './pages/BudgetingDashboard'
 import Disputes from './pages/Disputes'  // NEW: Disputes page
 import './App.css'
 
@@ -45,6 +46,7 @@ function AppRoutes() {
         <Route path="/more" element={<ProtectedRoute><More /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/budgeting" element={<ProtectedRoute><BudgetingDashboard /></ProtectedRoute>} />
         <Route path="/disputes" element={<ProtectedRoute><Disputes /></ProtectedRoute>} />  {/* NEW */}
       </Routes>
       {isAuthenticated && <BottomTabNav />}

@@ -1921,6 +1921,40 @@ export interface CreditUtilization {
   primary_color: string | null
 }
 
+export interface ManualCreditCard {
+  id: string
+  user_id: string
+  bank_id: string
+  nickname: string | null
+  last_four: string | null
+  credit_limit: number | null
+  current_balance: number | null
+  apr: number | null
+  due_date: number | null
+  statement_date: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BudgetSummary {
+  assigned: number
+  spent: number
+  remaining: number
+  month: string | null
+}
+
+export interface UpcomingBill {
+  id: string
+  user_id: string
+  name: string
+  amount: number
+  due_date: string
+  autopay: boolean | null
+  status: string | null
+  created_at: string
+  updated_at: string
+}
+
 // Sync transactions from Plaid via Edge Function
 export async function syncTransactions(
   connectionId?: string
@@ -2095,4 +2129,53 @@ export async function getCreditUtilization(userId: string): Promise<CreditUtiliz
       primary_color: conn?.primary_color || null,
     }
   }).sort((a, b) => b.utilization_percent - a.utilization_percent)
+}
+
+export async function getManualCreditCards(userId: string): Promise<ManualCreditCard[]> {
+  const { data, error } = await supabase
+    .from('credit_cards')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching manual credit cards:', error)
+    return []
+  }
+
+  return data || []
+}
+
+export async function getBudgetSummary(userId: string): Promise<BudgetSummary | null> {
+  // TODO: Replace this query once the budgeting tables/API are finalized.
+  const { data, error } = await supabase
+    .from('budget_summary')
+    .select('assigned, spent, remaining, month')
+    .eq('user_id', userId)
+    .single()
+
+  if (error) {
+    if (error.code !== 'PGRST116') {
+      console.error('Error fetching budget summary:', error)
+    }
+    return null
+  }
+
+  return data
+}
+
+export async function getUpcomingBills(userId: string): Promise<UpcomingBill[]> {
+  // TODO: Replace this query once the bills table/API is available.
+  const { data, error } = await supabase
+    .from('upcoming_bills')
+    .select('*')
+    .eq('user_id', userId)
+    .order('due_date', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching upcoming bills:', error)
+    return []
+  }
+
+  return data || []
 }

@@ -96,6 +96,13 @@ function More() {
       path: '/calendar',
     },
     {
+      id: 'budgeting',
+      icon: '📒',
+      label: 'Budgeting Dashboard',
+      description: 'Track net worth and monthly spending',
+      path: '/budgeting',
+    },
+    {
       id: 'notifications',
       icon: '🔔',
       label: 'Notifications',
