@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase, getBankAccounts, getBankConnections, getFilesByUser, getFileUrl, deleteFile, type BankConnection, type BankAccount, type UploadedFile } from '../lib/supabase'
 import { PlaidLinkModal } from '../components/PlaidLinkModal'
@@ -50,150 +50,172 @@ export default function VaultPage() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
 
   // Load all data
-  const loadData = useCallback(async () => {
-    if (!user?.id) return
-    setLoading(true)
+  useEffect(() => {
+    let isActive = true
+    const loadData = async () => {
+      if (!user?.id) return
+      setLoading(true)
 
-    try {
-      const [connectionsData, accountsData, creditCardsResult, belongingsResult, allBelongingsResult, filesData] = await Promise.all([
-        getBankConnections(user.id),
-        getBankAccounts(user.id),
-        supabase.from('credit_cards').select('*').eq('user_id', user.id),
-        supabase.from('belongings').select('*').eq('user_id', user.id).eq('location', 'carry'),
-        supabase.from('belongings').select('*').eq('user_id', user.id), // All belongings for vault items
-        getFilesByUser(user.id),
-      ])
+      try {
+        const [connectionsData, accountsData, creditCardsResult, belongingsResult, allBelongingsResult, filesData] = await Promise.all([
+          getBankConnections(user.id),
+          getBankAccounts(user.id),
+          supabase.from('credit_cards').select('*').eq('user_id', user.id),
+          supabase.from('belongings').select('*').eq('user_id', user.id).eq('location', 'carry'),
+          supabase.from('belongings').select('*').eq('user_id', user.id), // All belongings for vault items
+          getFilesByUser(user.id),
+        ])
 
-      console.log('[Vault] Loaded:', {
-        connections: connectionsData.length,
-        accounts: accountsData.length,
-        manualCards: creditCardsResult.data?.length,
-        carryItems: belongingsResult.data?.length,
-        uploadedFiles: filesData.length,
-      })
+        console.log('[Vault] Loaded:', {
+          connections: connectionsData.length,
+          accounts: accountsData.length,
+          manualCards: creditCardsResult.data?.length,
+          carryItems: belongingsResult.data?.length,
+          uploadedFiles: filesData.length,
+        })
 
-      setUploadedFiles(filesData)
+        if (!isActive) return
 
-      setConnections(connectionsData)
-      setAccounts(accountsData)
+        setUploadedFiles(filesData)
+        setConnections(connectionsData)
+        setAccounts(accountsData)
 
-      // Map manual cards
-      const cards: ManualCard[] = (creditCardsResult.data || []).map(card => {
-        const belonging = belongingsResult.data?.find(b => b.credit_card_id === card.id)
-        return {
-          id: card.id,
-          nickname: card.nickname || 'Card',
-          lastFour: card.last_four || '',
-          connectionId: card.connection_id || '',
-          inCarry: belonging?.location === 'carry',
-          isLocked: card.is_locked || false,
-          balance: card.current_balance || null,
-        }
-      })
-      setManualCards(cards)
+        // Map manual cards
+        const cards: ManualCard[] = (creditCardsResult.data || []).map((card) => {
+          const belonging = belongingsResult.data?.find((b) => b.credit_card_id === card.id)
+          return {
+            id: card.id,
+            nickname: card.nickname || 'Card',
+            lastFour: card.last_four || '',
+            connectionId: card.connection_id || '',
+            inCarry: belonging?.location === 'carry',
+            isLocked: card.is_locked || false,
+            balance: card.current_balance || null,
+          }
+        })
+        setManualCards(cards)
 
-      // Build carry items list
-      const carry: CarryItem[] = (belongingsResult.data || []).map(b => {
-        // Check if it's a manual card
-        if (b.credit_card_id) {
-          const card = creditCardsResult.data?.find(c => c.id === b.credit_card_id)
-          const conn = connectionsData.find(c => c.id === card?.connection_id)
+        // Build carry items list
+        const carry: CarryItem[] = (belongingsResult.data || []).map((b) => {
+          // Check if it's a manual card
+          if (b.credit_card_id) {
+            const card = creditCardsResult.data?.find((c) => c.id === b.credit_card_id)
+            const conn = connectionsData.find((c) => c.id === card?.connection_id)
+            return {
+              id: b.id,
+              type: 'manual' as const,
+              name: card?.nickname || 'Card',
+              details: card?.last_four ? `•••• ${card.last_four}` : 'Credit Card',
+              color: conn?.primary_color || '#6366f1',
+              balance: card?.current_balance || null,
+              sourceId: b.credit_card_id,
+              connectionId: card?.connection_id || '',
+            }
+          }
+          // Plaid account
+          if (b.linked_account_id) {
+            const acc = accountsData.find((a) => a.id === b.linked_account_id)
+            const conn = connectionsData.find((c) => c.id === acc?.connection_id)
+            return {
+              id: b.id,
+              type: 'plaid' as const,
+              name: b.name || acc?.name || 'Account',
+              details: b.details || (acc?.mask ? `•••• ${acc.mask}` : ''),
+              color: conn?.primary_color || '#6366f1',
+              balance: acc?.balance_current ?? null,
+              sourceId: b.linked_account_id,
+              connectionId: acc?.connection_id || '',
+            }
+          }
+          // Document
+          if (b.document_id) {
+            return {
+              id: b.id,
+              type: 'document' as const,
+              name: b.name,
+              details: b.details || '',
+              color: b.color || '#6366f1',
+              balance: null,
+              sourceId: b.document_id,
+              connectionId: '',
+              fileId: b.document_id,
+            }
+          }
+          // Generic belonging
           return {
             id: b.id,
             type: 'manual' as const,
-            name: card?.nickname || 'Card',
-            details: card?.last_four ? `•••• ${card.last_four}` : 'Credit Card',
-            color: conn?.primary_color || '#6366f1',
-            balance: card?.current_balance || null,
-            sourceId: b.credit_card_id,
-            connectionId: card?.connection_id || '',
-          }
-        }
-        // Plaid account
-        if (b.linked_account_id) {
-          const acc = accountsData.find(a => a.id === b.linked_account_id)
-          const conn = connectionsData.find(c => c.id === acc?.connection_id)
-          return {
-            id: b.id,
-            type: 'plaid' as const,
-            name: b.name || acc?.name || 'Account',
-            details: b.details || (acc?.mask ? `•••• ${acc.mask}` : ''),
-            color: conn?.primary_color || '#6366f1',
-            balance: acc?.balance_current ?? null,
-            sourceId: b.linked_account_id,
-            connectionId: acc?.connection_id || '',
-          }
-        }
-        // Document
-        if (b.document_id) {
-          return {
-            id: b.id,
-            type: 'document' as const,
             name: b.name,
             details: b.details || '',
             color: b.color || '#6366f1',
             balance: null,
-            sourceId: b.document_id,
+            sourceId: b.id,
             connectionId: '',
-            fileId: b.document_id,
           }
+        })
+        setCarryItems(carry)
+
+        // Build vault items list (generic items not linked to cards/accounts)
+        const genericItems: CarryItem[] = (allBelongingsResult.data || [])
+          .filter((b) => !b.credit_card_id && !b.linked_account_id)
+          .map((b) => ({
+            id: b.id,
+            type: 'manual' as const,
+            name: b.name,
+            details: b.details || '',
+            color: b.color || '#6366f1',
+            balance: null,
+            sourceId: b.id,
+            connectionId: '',
+          }))
+
+        // Separate into carry and vault
+        const genericInCarry = genericItems.filter((item) => {
+          const belonging = allBelongingsResult.data?.find((b) => b.id === item.id)
+          return belonging?.location === 'carry'
+        })
+        const genericInVault = genericItems.filter((item) => {
+          const belonging = allBelongingsResult.data?.find((b) => b.id === item.id)
+          return belonging?.location !== 'carry'
+        })
+
+        // Add generic carry items to carryItems
+        setCarryItems([...carry, ...genericInCarry])
+        setVaultItems(genericInVault)
+
+        // Auto-expand first bank
+        if (connectionsData.length > 0) {
+          setExpandedBanks((prev) => (prev.size === 0 ? new Set([connectionsData[0].id]) : prev))
         }
-        // Generic belonging
-        return {
-          id: b.id,
-          type: 'manual' as const,
-          name: b.name,
-          details: b.details || '',
-          color: b.color || '#6366f1',
-          balance: null,
-          sourceId: b.id,
-          connectionId: '',
-        }
-      })
-      setCarryItems(carry)
-
-      // Build vault items list (generic items not linked to cards/accounts)
-      const genericItems: CarryItem[] = (allBelongingsResult.data || [])
-        .filter(b => !b.credit_card_id && !b.linked_account_id)
-        .map(b => ({
-          id: b.id,
-          type: 'manual' as const,
-          name: b.name,
-          details: b.details || '',
-          color: b.color || '#6366f1',
-          balance: null,
-          sourceId: b.id,
-          connectionId: '',
-        }))
-
-      // Separate into carry and vault
-      const genericInCarry = genericItems.filter(item => {
-        const belonging = allBelongingsResult.data?.find(b => b.id === item.id)
-        return belonging?.location === 'carry'
-      })
-      const genericInVault = genericItems.filter(item => {
-        const belonging = allBelongingsResult.data?.find(b => b.id === item.id)
-        return belonging?.location !== 'carry'
-      })
-
-      // Add generic carry items to carryItems
-      setCarryItems([...carry, ...genericInCarry])
-      setVaultItems(genericInVault)
-
-      // Auto-expand first bank
-      if (connectionsData.length > 0 && expandedBanks.size === 0) {
-        setExpandedBanks(new Set([connectionsData[0].id]))
+      } catch (error) {
+        console.error('Error loading vault data:', error)
       }
-    } catch (error) {
-      console.error('Error loading vault data:', error)
+
+      if (isActive) {
+        setLoading(false)
+      }
     }
 
-    setLoading(false)
+    loadData()
+
+    return () => {
+      isActive = false
+    }
   }, [user?.id])
 
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  const refreshConnectionsAndAccounts = async () => {
+    if (!user?.id) return
+    try {
+      const [connectionsData, accountsData] = await Promise.all([
+        getBankConnections(user.id),
+        getBankAccounts(user.id),
+      ])
+      setConnections(connectionsData)
+      setAccounts(accountsData)
+    } catch (error) {
+      console.error('Error refreshing connections:', error)
+    }
+  }
 
   const toggleBankExpanded = (connectionId: string) => {
     setExpandedBanks(prev => {
@@ -411,7 +433,7 @@ export default function VaultPage() {
     })
     setExpandedBanks(prev => new Set(prev).add(connection.id))
     setShowPlaidModal(false)
-    loadData()
+    refreshConnectionsAndAccounts()
   }
 
   const handleOpenCardDetail = (card: ManualCard) => {
