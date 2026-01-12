@@ -1,0 +1,236 @@
+{
+  "name": "Monthly Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyMonth",
+              "dayOfMonth": 1,
+              "hour": 8,
+              "minute": 0
+            }
+          ]
+        }
+      },
+      "id": "MonthlyTrigger",
+      "name": "Monthly Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/monthly_budget_summary",
+        "jsonParameters": true,
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        },
+        "headerParametersJson": "={\n  \"apikey\": \"{{$env.SUPABASE_SERVICE_ROLE_KEY}}\",\n  \"Authorization\": \"Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}\",\n  \"Content-Type\": \"application/json\"\n}",
+        "bodyParametersJson": "={\n  \"user_id\": \"{{$env.DEFAULT_USER_ID}}\",\n  \"month\": \"{{$now.minus({ months: 1 }).toFormat('yyyy-LL')}}\"\n}"
+      },
+      "id": "FetchSummary",
+      "name": "Fetch Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "prompt",
+              "value": "=Summarize the user's monthly budget performance using this data: {{$json}}. Provide insights, anomalies, and one actionable recommendation."
+            }
+          ]
+        }
+      },
+      "id": "BuildPrompt",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        700,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        },
+        "headerParametersJson": "={\n  \"x-api-key\": \"{{$env.ANTHROPIC_API_KEY}}\",\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}",
+        "bodyParametersJson": "={\n  \"model\": \"{{$env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20240620'}}\",\n  \"max_tokens\": 700,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"{{$json.prompt}}\"\n    }\n  ]\n}"
+      },
+      "id": "ClaudeInsights",
+      "name": "Claude Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        940,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.ALERTS_FROM_EMAIL}}",
+        "toEmail": "={{$env.MONTHLY_SUMMARY_EMAIL}}",
+        "subject": "={{$env.MONTHLY_SUMMARY_SUBJECT || 'Your Monthly Budget Summary'}}",
+        "text": "={{$json.content && $json.content[0] ? $json.content[0].text : 'Summary unavailable'}}",
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        }
+      },
+      "id": "EmailSummary",
+      "name": "Email Summary",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.IN_APP_ALERTS_URL}}/summaries",
+        "jsonParameters": true,
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        },
+        "bodyParametersJson": "={\n  \"user_id\": \"{{$env.DEFAULT_USER_ID}}\",\n  \"summary\": \"{{$json.content && $json.content[0] ? $json.content[0].text : ''}}\"\n}"
+      },
+      "id": "InAppSummary",
+      "name": "In-App Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1180,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "sent"
+            },
+            {
+              "name": "summary_month",
+              "value": "={{$now.minus({ months: 1 }).toFormat('yyyy-LL')}}"
+            }
+          ]
+        }
+      },
+      "id": "SetResult",
+      "name": "Set Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Monthly Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Summary": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Insights": {
+      "main": [
+        [
+          {
+            "node": "Email Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "In-App Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Summary": {
+      "main": [
+        [
+          {
+            "node": "Set Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "In-App Summary": {
+      "main": [
+        [
+          {
+            "node": "Set Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

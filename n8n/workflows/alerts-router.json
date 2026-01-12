@@ -1,0 +1,207 @@
+{
+  "name": "Alerts Router",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "alerts-router",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "id": "WebhookTrigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "value1": "={{$json.channel}}",
+        "rules": [
+          {
+            "operation": "equal",
+            "value2": "telegram"
+          },
+          {
+            "operation": "equal",
+            "value2": "email"
+          },
+          {
+            "operation": "equal",
+            "value2": "in_app"
+          }
+        ]
+      },
+      "id": "SwitchChannel",
+      "name": "Switch Channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.telegram_chat_id || $env.TELEGRAM_CHAT_ID}}",
+        "text": "={{$json.message}}",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        },
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        }
+      },
+      "id": "TelegramSend",
+      "name": "Telegram Send",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        720,
+        160
+      ],
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram Bot",
+          "id": "1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.ALERTS_FROM_EMAIL}}",
+        "toEmail": "={{$json.email}}",
+        "subject": "={{$json.subject || 'Budget Alert'}}",
+        "text": "={{$json.message}}",
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        }
+      },
+      "id": "EmailSend",
+      "name": "Email Send",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        720,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.IN_APP_ALERTS_URL}}/alerts",
+        "jsonParameters": true,
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        },
+        "bodyParametersJson": "={\n  \"user_id\": \"{{$json.user_id}}\",\n  \"title\": \"{{$json.subject || 'Budget Alert'}}\",\n  \"message\": \"{{$json.message}}\"\n}"
+      },
+      "id": "InAppSend",
+      "name": "In-App Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        720,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"sent\",\n  \"channel\": \"{{$json.channel}}\"\n}"
+      },
+      "id": "Respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        980,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Switch Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Channel": {
+      "main": [
+        [
+          {
+            "node": "Telegram Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "In-App Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Send": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Send": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "In-App Send": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
