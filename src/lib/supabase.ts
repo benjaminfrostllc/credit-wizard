@@ -1902,6 +1902,32 @@ export interface Transaction {
   account?: BankAccount
 }
 
+export interface Category {
+  id: string
+  user_id: string
+  name: string
+  color: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CategoryRule {
+  id: string
+  user_id: string
+  category_id: string
+  match_type: 'merchant' | 'name' | 'regex'
+  match_value: string
+  source: 'user' | 'merchant'
+  created_at: string
+  updated_at: string
+}
+
+export interface RuleApplication {
+  transaction_id: string
+  category_id: string | null
+  primary_category: string
+}
+
 export interface SpendingByCategory {
   category: string
   total: number
@@ -1919,6 +1945,248 @@ export interface CreditUtilization {
   institution_name: string
   logo_url: string | null
   primary_color: string | null
+}
+
+export const DEFAULT_CATEGORIES: Array<{ name: string; color: string }> = [
+  { name: 'Food and Drink', color: '#22c55e' },
+  { name: 'Shops', color: '#3b82f6' },
+  { name: 'Travel', color: '#8b5cf6' },
+  { name: 'Transfer', color: '#6b7280' },
+  { name: 'Payment', color: '#6b7280' },
+  { name: 'Recreation', color: '#f59e0b' },
+  { name: 'Service', color: '#ec4899' },
+  { name: 'Healthcare', color: '#ef4444' },
+  { name: 'Community', color: '#14b8a6' },
+  { name: 'Bank Fees', color: '#dc2626' },
+  { name: 'Interest', color: '#7c3aed' },
+  { name: 'Tax', color: '#991b1b' },
+  { name: 'Other', color: '#9ca3af' },
+]
+
+// ============================================
+// CATEGORY MANAGEMENT
+// ============================================
+
+export async function getCategories(userId: string): Promise<Category[]> {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('user_id', userId)
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching categories:', error)
+    return []
+  }
+
+  return data || []
+}
+
+export async function ensureDefaultCategories(userId: string): Promise<Category[]> {
+  const existing = await getCategories(userId)
+  if (existing.length > 0) {
+    return existing
+  }
+
+  const { data, error } = await supabase
+    .from('categories')
+    .insert(
+      DEFAULT_CATEGORIES.map((category) => ({
+        user_id: userId,
+        name: category.name,
+        color: category.color,
+      }))
+    )
+    .select('*')
+
+  if (error) {
+    console.error('Error creating default categories:', error)
+    return existing
+  }
+
+  return data || []
+}
+
+export async function createCategory(
+  userId: string,
+  category: Pick<Category, 'name' | 'color'>
+): Promise<{ category: Category | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('categories')
+    .insert({
+      user_id: userId,
+      name: category.name,
+      color: category.color,
+    })
+    .select('*')
+    .single()
+
+  return { category: data || null, error: error?.message || null }
+}
+
+export async function updateCategory(
+  categoryId: string,
+  updates: Partial<Pick<Category, 'name' | 'color'>>
+): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('categories')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', categoryId)
+
+  return { success: !error, error: error?.message || null }
+}
+
+export async function deleteCategory(categoryId: string): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', categoryId)
+
+  return { success: !error, error: error?.message || null }
+}
+
+export async function getCategoryRules(userId: string): Promise<CategoryRule[]> {
+  const { data, error } = await supabase
+    .from('category_rules')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching category rules:', error)
+    return []
+  }
+
+  return data || []
+}
+
+export async function createCategoryRule(
+  userId: string,
+  rule: Pick<CategoryRule, 'category_id' | 'match_type' | 'match_value' | 'source'>
+): Promise<{ rule: CategoryRule | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('category_rules')
+    .insert({
+      user_id: userId,
+      category_id: rule.category_id,
+      match_type: rule.match_type,
+      match_value: rule.match_value,
+      source: rule.source,
+    })
+    .select('*')
+    .single()
+
+  return { rule: data || null, error: error?.message || null }
+}
+
+export async function updateCategoryRule(
+  ruleId: string,
+  updates: Partial<Pick<CategoryRule, 'category_id' | 'match_type' | 'match_value' | 'source'>>
+): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('category_rules')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', ruleId)
+
+  return { success: !error, error: error?.message || null }
+}
+
+export async function deleteCategoryRule(ruleId: string): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('category_rules')
+    .delete()
+    .eq('id', ruleId)
+
+  return { success: !error, error: error?.message || null }
+}
+
+export function applyRules(
+  transactions: Transaction[],
+  rules: CategoryRule[],
+  categories: Category[]
+): { transactions: Transaction[]; updates: RuleApplication[] } {
+  const categoryById = new Map(categories.map((category) => [category.id, category]))
+  const categoryByName = new Map(categories.map((category) => [category.name.toLowerCase(), category]))
+  const userRules = rules.filter((rule) => rule.source === 'user')
+  const merchantRules = rules.filter((rule) => rule.source === 'merchant')
+  const orderedRules = [...userRules, ...merchantRules]
+
+  const normalize = (value: string | null | undefined) => (value || '').trim().toLowerCase()
+
+  const updates: RuleApplication[] = []
+  const updatedTransactions = transactions.map((transaction) => {
+    const existingCategory =
+      (transaction.category_id && categoryById.get(transaction.category_id)) ||
+      (transaction.primary_category && categoryByName.get(transaction.primary_category.toLowerCase())) ||
+      null
+    const fallbackCategory = transaction.primary_category ? null : categoryByName.get('other') || null
+    let matchedCategory = existingCategory
+
+    for (const rule of orderedRules) {
+      const target =
+        rule.match_type === 'merchant'
+          ? normalize(transaction.merchant_name)
+          : rule.match_type === 'regex'
+            ? normalize(transaction.merchant_name || transaction.name)
+            : normalize(transaction.name)
+      const matchValue = normalize(rule.match_value)
+
+      if (!target || !matchValue) {
+        continue
+      }
+
+      if (rule.match_type === 'regex') {
+        try {
+          if (!new RegExp(rule.match_value, 'i').test(target)) {
+            continue
+          }
+        } catch (error) {
+          console.warn('Invalid category rule regex:', rule.match_value, error)
+          continue
+        }
+      } else if (!target.includes(matchValue)) {
+        continue
+      }
+
+      matchedCategory = categoryById.get(rule.category_id) || null
+      break
+    }
+
+    const finalCategory = matchedCategory || existingCategory || fallbackCategory
+    const nextCategoryId = finalCategory?.id || null
+    const nextPrimaryCategory = finalCategory?.name || transaction.primary_category || 'Other'
+
+    if (transaction.category_id !== nextCategoryId || transaction.primary_category !== nextPrimaryCategory) {
+      updates.push({
+        transaction_id: transaction.id,
+        category_id: nextCategoryId,
+        primary_category: nextPrimaryCategory,
+      })
+    }
+
+    return {
+      ...transaction,
+      category_id: nextCategoryId,
+      primary_category: nextPrimaryCategory,
+    }
+  })
+
+  return { transactions: updatedTransactions, updates }
+}
+
+export async function updateTransactionCategory(
+  transactionId: string,
+  userId: string,
+  categoryId: string | null,
+  primaryCategory: string
+): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('transactions')
+    .update({ category_id: categoryId, primary_category: primaryCategory, updated_at: new Date().toISOString() })
+    .eq('id', transactionId)
+    .eq('user_id', userId)
+
+  return { success: !error, error: error?.message || null }
 }
 
 // Sync transactions from Plaid via Edge Function
