@@ -96,6 +96,13 @@ function More() {
       path: '/calendar',
     },
     {
+      id: 'budget',
+      icon: '🧮',
+      label: 'Budget',
+      description: 'Give every dollar a job',
+      path: '/budget',
+    },
+    {
       id: 'notifications',
       icon: '🔔',
       label: 'Notifications',

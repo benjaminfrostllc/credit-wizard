@@ -96,6 +96,40 @@ export interface UploadedFile {
   uploaded_at: string
 }
 
+export interface BudgetMonth {
+  id: string
+  user_id: string
+  month: string
+  income_total: number
+  assigned_total: number
+  remaining: number
+  created_at: string
+  updated_at: string
+}
+
+export interface BudgetCategory {
+  id: string
+  user_id: string
+  name: string
+  plaid_primary_category: string | null
+  rollover_enabled: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EnvelopeAllocation {
+  id: string
+  budget_month_id: string
+  category_id: string
+  assigned_amount: number
+  spent_amount: number
+  available_amount: number
+  created_at: string
+  updated_at: string
+  category?: BudgetCategory
+}
+
 // ============================================
 // AUTH FUNCTIONS
 // ============================================
@@ -1870,6 +1904,154 @@ export async function logPlaidApiUsage(
   if (error) {
     console.error('Error logging Plaid API usage:', error)
   }
+}
+
+// ============================================
+// BUDGET FUNCTIONS
+// ============================================
+
+export async function getBudgetMonthByDate(
+  userId: string,
+  month: string
+): Promise<BudgetMonth | null> {
+  const { data, error } = await supabase
+    .from('budget_months')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('month', month)
+    .maybeSingle()
+
+  if (error) {
+    console.error('Error fetching budget month:', error)
+    return null
+  }
+
+  return data || null
+}
+
+export async function getOrCreateBudgetMonth(
+  userId: string,
+  month: string
+): Promise<BudgetMonth | null> {
+  const existing = await getBudgetMonthByDate(userId, month)
+  if (existing) return existing
+
+  const { data, error } = await supabase
+    .from('budget_months')
+    .insert({
+      user_id: userId,
+      month,
+      income_total: 0,
+      assigned_total: 0,
+    })
+    .select('*')
+    .single()
+
+  if (error) {
+    console.error('Error creating budget month:', error)
+    return null
+  }
+
+  return data || null
+}
+
+export async function updateBudgetMonthTotals(
+  budgetMonthId: string,
+  totals: { income_total: number; assigned_total: number }
+): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('budget_months')
+    .update({
+      income_total: totals.income_total,
+      assigned_total: totals.assigned_total,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', budgetMonthId)
+
+  return { success: !error, error: error?.message || null }
+}
+
+export async function getBudgetCategories(userId: string): Promise<BudgetCategory[]> {
+  const { data, error } = await supabase
+    .from('budget_categories')
+    .select('*')
+    .eq('user_id', userId)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching budget categories:', error)
+    return []
+  }
+
+  return data || []
+}
+
+export async function createBudgetCategories(
+  userId: string,
+  categories: Array<Pick<BudgetCategory, 'name' | 'plaid_primary_category' | 'rollover_enabled' | 'sort_order'>>
+): Promise<BudgetCategory[]> {
+  const { data, error } = await supabase
+    .from('budget_categories')
+    .insert(
+      categories.map((category) => ({
+        user_id: userId,
+        name: category.name,
+        plaid_primary_category: category.plaid_primary_category,
+        rollover_enabled: category.rollover_enabled,
+        sort_order: category.sort_order,
+      }))
+    )
+    .select('*')
+
+  if (error) {
+    console.error('Error creating budget categories:', error)
+    return []
+  }
+
+  return data || []
+}
+
+export async function updateBudgetCategory(
+  categoryId: string,
+  updates: Partial<Pick<BudgetCategory, 'rollover_enabled' | 'name' | 'plaid_primary_category' | 'sort_order'>>
+): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('budget_categories')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', categoryId)
+
+  return { success: !error, error: error?.message || null }
+}
+
+export async function getEnvelopeAllocations(
+  budgetMonthId: string
+): Promise<EnvelopeAllocation[]> {
+  const { data, error } = await supabase
+    .from('envelope_allocations')
+    .select('*, category:budget_categories(*)')
+    .eq('budget_month_id', budgetMonthId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching envelope allocations:', error)
+    return []
+  }
+
+  return data || []
+}
+
+export async function upsertEnvelopeAllocation(
+  allocation: Pick<EnvelopeAllocation, 'budget_month_id' | 'category_id' | 'assigned_amount' | 'spent_amount' | 'available_amount'>
+): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('envelope_allocations')
+    .upsert(allocation, { onConflict: 'budget_month_id,category_id' })
+
+  return { success: !error, error: error?.message || null }
 }
 
 // ============================================
