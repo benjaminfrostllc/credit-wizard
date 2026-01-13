@@ -331,6 +331,7 @@ export default function Disputes() {
   const [activeTab, setActiveTab] = useState<'overview' | 'items' | 'timeline'>('overview')
   const [docsUploaded, setDocsUploaded] = useState(false)
   const [creditReportUploaded, setCreditReportUploaded] = useState(false)
+  const [showOnboardingTip, setShowOnboardingTip] = useState(false)
 
   useEffect(() => {
     if (user?.id) {
@@ -338,6 +339,15 @@ export default function Disputes() {
       checkDocumentStatus()
     }
   }, [user?.id])
+
+  useEffect(() => {
+    try {
+      const dismissed = localStorage.getItem('disputes_onboarding_tip_dismissed')
+      if (!dismissed) setShowOnboardingTip(true)
+    } catch {
+      setShowOnboardingTip(true)
+    }
+  }, [])
 
   const checkDocumentStatus = async () => {
     if (!user?.id) return
@@ -431,6 +441,9 @@ export default function Disputes() {
 
       setItems(itemsData)
       console.log('[Disputes] Final items loaded:', itemsData.length)
+      if (itemsData.length > 0) {
+        console.log('[Disputes] Item sample:', itemsData.slice(0, 3))
+      }
 
       // Fetch rounds
       if (casesData && casesData.length > 0) {
@@ -451,9 +464,13 @@ export default function Disputes() {
 
         setRounds(roundsData || [])
 
-        // Select first case by default
+        // Select first case by default (use case_id string)
         if (!selectedCase && casesData.length > 0) {
-          setSelectedCase(casesData[0].id)
+          const defaultCaseId = casesData[0].case_id
+          if (defaultCaseId) {
+            console.log('[Disputes] Default case_id set:', defaultCaseId)
+            setSelectedCase(defaultCaseId)
+          }
         }
       }
     } catch (error) {
@@ -463,7 +480,7 @@ export default function Disputes() {
     }
   }
 
-  const selectedCaseData = cases.find(c => c.id === selectedCase)
+  const selectedCaseData = cases.find(c => c.case_id === selectedCase)
   const caseItems = items.filter(i => i.case_id === selectedCase)
   const caseRounds = rounds.filter(r => r.case_id === selectedCase)
 
@@ -600,6 +617,29 @@ export default function Disputes() {
               }
             }}
           />
+          {showOnboardingTip && (
+            <div className="mt-4 rounded-xl border border-gold/30 bg-gold/10 p-3 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-start gap-3">
+                <div className="text-lg">✨</div>
+                <div className="flex-1 text-sm text-gray-300">
+                  Complete DOCS → REPORT → ANALYSIS to unlock dispute tracking. Tap each step for the exact instructions.
+                </div>
+                <button
+                  onClick={() => {
+                    try {
+                      localStorage.setItem('disputes_onboarding_tip_dismissed', 'true')
+                    } catch {
+                      // ignore storage errors
+                    }
+                    setShowOnboardingTip(false)
+                  }}
+                  className="text-xs text-gold hover:text-gold/80"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Current Step Action Card */}
@@ -643,9 +683,9 @@ export default function Disputes() {
                 {cases.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => setSelectedCase(c.id)}
+                    onClick={() => setSelectedCase(c.case_id)}
                     className={`px-4 py-2 rounded-lg whitespace-nowrap transition-all ${
-                      selectedCase === c.id
+                      selectedCase === c.case_id
                         ? 'bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark font-semibold'
                         : 'bg-wizard-indigo/30 text-gray-400 hover:text-white border border-wizard-indigo/30'
                     }`}
@@ -694,7 +734,7 @@ export default function Disputes() {
 
             {/* Tab Content */}
             {activeTab === 'overview' && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {/* Bureau Breakdown */}
                 <div>
                   <h3 className="text-sm font-semibold text-gold mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-pixel)' }}>
@@ -790,7 +830,7 @@ export default function Disputes() {
             )}
 
             {activeTab === 'items' && (
-              <div>
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <h3 className="text-sm font-semibold text-gold mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-pixel)' }}>
                   <span>📁</span> DISPUTED ACCOUNTS ({caseItems.length})
                 </h3>
@@ -814,7 +854,7 @@ export default function Disputes() {
             )}
 
             {activeTab === 'timeline' && (
-              <div>
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <h3 className="text-sm font-semibold text-gold mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-pixel)' }}>
                   <span>📅</span> DISPUTE TIMELINE
                 </h3>

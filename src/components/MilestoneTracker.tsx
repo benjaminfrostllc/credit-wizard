@@ -32,30 +32,18 @@ const onboardingSteps: MilestoneStep[] = [
   {
     id: 1,
     title: 'DOCS',
-    subtitle: 'Upload ID & SSN',
+    subtitle: 'Identity verification',
     icon: '📄',
     phase: 'onboarding',
-    description: 'Verify your identity',
-    instructions: [
-      'Upload a clear photo of your Government-Issued ID (front and back)',
-      'Upload your Social Security Card',
-      'Upload Proof of Address (utility bill or bank statement)',
-      'Ensure all text is clearly readable'
-    ]
+    description: 'Upload your Government ID and Social Security card in The Vault to verify your identity.',
   },
   {
     id: 2,
     title: 'REPORT',
-    subtitle: 'Credit report',
+    subtitle: 'Report intake',
     icon: '📊',
     phase: 'onboarding',
-    description: 'Upload your credit report',
-    instructions: [
-      'Get your free credit report from AnnualCreditReport.com',
-      'Download reports from all 3 bureaus (Experian, Equifax, TransUnion)',
-      'Upload PDF or screenshot of each report',
-      'Our AI will analyze and identify disputable items'
-    ]
+    description: 'Upload your credit report PDF or connect your accounts to pull it automatically.',
   },
   {
     id: 3,
@@ -63,13 +51,7 @@ const onboardingSteps: MilestoneStep[] = [
     subtitle: 'AI review',
     icon: '🔍',
     phase: 'onboarding',
-    description: 'AI analyzes your report',
-    instructions: [
-      'Our AI scans for inaccurate information',
-      'Identifies FCRA violations and reporting errors',
-      'Calculates success probability for each item',
-      'Generates personalized dispute strategy'
-    ]
+    description: 'Our AI will analyze your report and identify items to dispute.',
   },
 ]
 
@@ -122,9 +104,13 @@ function InstructionModal({
             <h3 className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-pixel)' }}>
               {step.title}
             </h3>
-            <p className="text-sm text-gold">{step.description}</p>
+            <p className="text-sm text-gold">{step.subtitle}</p>
           </div>
         </div>
+
+        {step.description && (
+          <p className="text-sm text-gray-300 mb-4">{step.description}</p>
+        )}
 
         {step.instructions && (
           <ul className="space-y-3 mb-6">
@@ -144,7 +130,7 @@ function InstructionModal({
             onClick={onAction}
             className="w-full py-3 bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
-            {step.id === 1 ? 'Upload Documents' : 'Upload Credit Report'}
+            Go to The Vault
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
@@ -251,9 +237,7 @@ function OnboardingPhase({
   const isPending = (id: number) => !isCompleted(id) && !isCurrent(id)
 
   const handleStepClick = (step: MilestoneStep) => {
-    if (!isPending(step.id)) {
-      setSelectedStep(step)
-    }
+    setSelectedStep(step)
   }
 
   const handleModalAction = () => {
@@ -266,7 +250,7 @@ function OnboardingPhase({
   }
 
   return (
-    <div className="mb-6">
+    <div className="mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
       <h4 className="text-xs text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
         <span>🚀</span> ONBOARDING
         <span className="text-[10px] text-gold ml-auto">Click steps for instructions</span>
@@ -281,7 +265,7 @@ function OnboardingPhase({
                 isCurrent={isCurrent(step.id)}
                 isPending={isPending(step.id)}
                 onClick={() => handleStepClick(step)}
-                isClickable={!isPending(step.id)}
+                isClickable={true}
                 showTooltip={true}
               />
               <div className="mt-2 text-center">
@@ -374,17 +358,24 @@ function TrackingPhase({
   // Only show tracking if past onboarding
   if (currentStep < 4 && completedSteps.filter(s => s >= 4).length === 0) {
     return (
-      <div className="opacity-50">
+      <div className="opacity-50 animate-in fade-in slide-in-from-bottom-2 duration-300">
         <h4 className="text-xs text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
           <span>🎯</span> DISPUTE TRACKING
           <span className="text-[10px] text-gray-600 ml-2">Complete onboarding to unlock</span>
         </h4>
         <div className="flex items-center gap-2">
           {trackingSteps.map((step) => (
-            <div key={step.id} className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
-              <svg className="w-3 h-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
+            <div key={step.id} className="relative group">
+              <div className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
+                <svg className="w-3 h-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="px-2 py-1 bg-gray-900 border border-gray-700 rounded text-[10px] text-gray-300 whitespace-nowrap">
+                  Complete onboarding to unlock
+                </div>
+              </div>
             </div>
           ))}
         </div>
