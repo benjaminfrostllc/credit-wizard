@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, type RefObject } from 'react'
+import { Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { MilestoneTracker } from '../components/MilestoneTracker'
@@ -40,6 +40,20 @@ interface DisputeRound {
   letter_sent_at: string
   response_due_at: string
   outcome: string
+}
+
+interface DisputeDocument {
+  id: string
+  user_id: string
+  case_id: string | null
+  document_type: string
+  file_name: string
+  file_path: string
+  file_size: number
+  status: string
+  uploaded_at: string
+  verified_at: string | null
+  notes: string | null
 }
 
 const statusColors: Record<string, { bg: string; text: string }> = {
@@ -322,7 +336,6 @@ function ItemCard({ item }: { item: DisputeItem }) {
 
 export default function Disputes() {
   const { user } = useApp()
-  const navigate = useNavigate()
   const [cases, setCases] = useState<DisputeCase[]>([])
   const [items, setItems] = useState<DisputeItem[]>([])
   const [rounds, setRounds] = useState<DisputeRound[]>([])
@@ -331,34 +344,53 @@ export default function Disputes() {
   const [activeTab, setActiveTab] = useState<'overview' | 'items' | 'timeline'>('overview')
   const [docsUploaded, setDocsUploaded] = useState(false)
   const [creditReportUploaded, setCreditReportUploaded] = useState(false)
+  const [documents, setDocuments] = useState<DisputeDocument[]>([])
+  const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({})
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null)
+  const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'analyzing' | 'complete' | 'error'>('idle')
+  const [analysisMessage, setAnalysisMessage] = useState<string | null>(null)
+  const [activeOnboardingStep, setActiveOnboardingStep] = useState<1 | 2 | 3>(1)
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const docsSectionRef = useRef<HTMLDivElement | null>(null)
+  const reportSectionRef = useRef<HTMLDivElement | null>(null)
+
+  const documentSlots = [
+    {
+      type: 'government_id',
+      label: 'Government ID',
+      description: 'Upload front & back',
+      requiredCount: 2,
+      acceptedTypes: 'image/*,.pdf',
+    },
+    {
+      type: 'ssn_card',
+      label: 'Social Security Card',
+      description: 'Upload a clear scan',
+      requiredCount: 1,
+      acceptedTypes: 'image/*,.pdf',
+    },
+    {
+      type: 'proof_of_address',
+      label: 'Proof of Address',
+      description: 'Utility bill or bank statement',
+      requiredCount: 1,
+      acceptedTypes: 'image/*,.pdf',
+    },
+  ]
+
+  const creditReportSlot = {
+    type: 'credit_report',
+    label: 'Credit Report (PDF)',
+    description: 'Upload your report for AI analysis',
+    requiredCount: 1,
+    acceptedTypes: '.pdf',
+  }
 
   useEffect(() => {
     if (user?.id) {
       fetchDisputeData()
-      checkDocumentStatus()
     }
   }, [user?.id])
-
-  const checkDocumentStatus = async () => {
-    if (!user?.id) return
-    try {
-      const { data: files } = await supabase
-        .from('uploaded_files')
-        .select('document_type')
-        .eq('user_id', user.id)
-
-      if (files && files.length > 0) {
-        const types = files.map(f => f.document_type)
-        const hasRequiredDocs = types.includes('government_id') &&
-                                types.includes('social_security') &&
-                                types.includes('proof_of_address')
-        setDocsUploaded(hasRequiredDocs)
-        setCreditReportUploaded(types.includes('credit_report'))
-      }
-    } catch (error) {
-      console.error('Error checking document status:', error)
-    }
-  }
 
   const fetchDisputeData = async () => {
     if (!user?.id) return
@@ -467,6 +499,59 @@ export default function Disputes() {
   const caseItems = items.filter(i => i.case_id === selectedCase)
   const caseRounds = rounds.filter(r => r.case_id === selectedCase)
 
+  useEffect(() => {
+    if (user?.id) {
+      loadDisputeDocuments()
+    }
+  }, [user?.id, selectedCaseData?.case_id])
+
+  useEffect(() => {
+    if (selectedCaseData?.ai_summary) {
+      setAnalysisStatus('complete')
+    }
+  }, [selectedCaseData?.ai_summary])
+
+  useEffect(() => {
+    if (analysisStatus !== 'analyzing' || !selectedCase) return
+
+    const interval = window.setInterval(async () => {
+      const { data, error } = await supabase
+        .from('dispute_cases')
+        .select('ai_summary')
+        .eq('id', selectedCase)
+        .single()
+
+      if (error) {
+        console.error('Error checking analysis status:', error)
+        return
+      }
+
+      if (data?.ai_summary) {
+        setAnalysisStatus('complete')
+        fetchDisputeData()
+      }
+    }, 5000)
+
+    return () => window.clearInterval(interval)
+  }, [analysisStatus, selectedCase])
+
+  useEffect(() => {
+    const isDocsComplete = documentSlots.every(slot => getDocumentsByType(slot.type).length >= slot.requiredCount)
+    const hasReport = getDocumentsByType(creditReportSlot.type).length > 0
+    setDocsUploaded(isDocsComplete)
+    setCreditReportUploaded(hasReport)
+
+    if (isDocsComplete && activeOnboardingStep === 1) {
+      setActiveOnboardingStep(2)
+    }
+  }, [documents, activeOnboardingStep])
+
+  useEffect(() => {
+    if (analysisStatus === 'complete') {
+      setActiveOnboardingStep(3)
+    }
+  }, [analysisStatus])
+
   // Calculate stats
   const totalItems = caseItems.length
   const deletedItems = caseItems.filter(i => i.status === 'deleted').length
@@ -545,6 +630,181 @@ export default function Disputes() {
 
   const milestones = calculateMilestones()
 
+  const getDocumentsByType = (type: string) => documents.filter(doc => doc.document_type === type)
+  const docsProgress = documentSlots.filter(slot => getDocumentsByType(slot.type).length >= slot.requiredCount).length
+
+  const formatFileSize = (size: number) => {
+    if (!size) return '0 KB'
+    const kb = size / 1024
+    if (kb < 1024) return `${Math.round(kb)} KB`
+    const mb = kb / 1024
+    return `${mb.toFixed(1)} MB`
+  }
+
+  const isImageFile = (fileName: string) => /\.(png|jpe?g|gif|webp)$/i.test(fileName)
+
+  const scrollToSection = (ref: RefObject<HTMLDivElement>) => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const loadDisputeDocuments = async () => {
+    if (!user?.id) return
+
+    try {
+      const query = supabase
+        .from('dispute_documents')
+        .select('*')
+        .eq('user_id', user.id)
+
+      if (selectedCaseData?.case_id) {
+        query.eq('case_id', selectedCaseData.case_id)
+      }
+
+      const { data, error } = await query.order('uploaded_at', { ascending: false })
+
+      if (error) {
+        console.error('Error loading dispute documents:', error)
+        return
+      }
+
+      const docs = data || []
+      setDocuments(docs)
+
+      const previews = await Promise.all(
+        docs.map(async (doc) => {
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from('documents')
+            .createSignedUrl(doc.file_path, 3600)
+
+          if (signedError) {
+            console.error('Error creating signed URL:', signedError)
+            return { id: doc.id, url: '' }
+          }
+
+          return { id: doc.id, url: signedData?.signedUrl || '' }
+        })
+      )
+
+      const urlMap = previews.reduce<Record<string, string>>((acc, preview) => {
+        acc[preview.id] = preview.url
+        return acc
+      }, {})
+
+      setDocumentUrls(urlMap)
+    } catch (error) {
+      console.error('Error loading dispute documents:', error)
+    }
+  }
+
+  const handleDocumentUpload = async (documentType: string, file: File) => {
+    if (!user?.id) return
+
+    try {
+      setUploadingDoc(documentType)
+      setAnalysisMessage(null)
+
+      const timestamp = Date.now()
+      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      const filePath = `${user.id}/disputes/${documentType}/${timestamp}_${safeName}`
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        })
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        setAnalysisMessage(uploadError.message)
+        if (documentType === 'credit_report') {
+          setAnalysisStatus('error')
+        }
+        return
+      }
+
+      const { error: disputeError } = await supabase
+        .from('dispute_documents')
+        .insert({
+          user_id: user.id,
+          case_id: selectedCaseData?.case_id || null,
+          document_type: documentType,
+          file_name: file.name,
+          file_path: uploadData.path,
+          file_size: file.size,
+        })
+
+      if (disputeError) {
+        console.error('Dispute document error:', disputeError)
+        await supabase.storage.from('documents').remove([filePath])
+        setAnalysisMessage(disputeError.message)
+        if (documentType === 'credit_report') {
+          setAnalysisStatus('error')
+        }
+        return
+      }
+
+      const taskMap: Record<string, string> = {
+        government_id: 'vault_id',
+        ssn_card: 'vault_ssn',
+        proof_of_address: 'vault_address',
+        credit_report: 'credit_report',
+      }
+
+      const { error: vaultError } = await supabase
+        .from('uploaded_files')
+        .insert({
+          user_id: user.id,
+          task_id: taskMap[documentType] || documentType,
+          file_name: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          file_path: uploadData.path,
+        })
+
+      if (vaultError) {
+        console.error('Vault sync error:', vaultError)
+      }
+
+      if (documentType === 'credit_report') {
+        setAnalysisStatus('analyzing')
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from('documents')
+          .createSignedUrl(uploadData.path, 3600)
+
+        if (signedError || !signedData?.signedUrl) {
+          setAnalysisStatus('error')
+          setAnalysisMessage('Unable to generate report link for analysis.')
+        } else {
+          const response = await fetch('https://benjaminfrostllc.app.n8n.cloud/webhook/analyze-report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: user.id,
+              case_id: selectedCaseData?.case_id || null,
+              report_url: signedData.signedUrl,
+            }),
+          })
+
+          if (!response.ok) {
+            setAnalysisStatus('error')
+            setAnalysisMessage('Report analysis failed. Please try again later.')
+          }
+        }
+      }
+
+      await loadDisputeDocuments()
+    } catch (error) {
+      console.error('Upload failed:', error)
+      setAnalysisMessage('Upload failed. Please try again.')
+      if (documentType === 'credit_report') {
+        setAnalysisStatus('error')
+      }
+    } finally {
+      setUploadingDoc(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen p-4 flex items-center justify-center">
@@ -594,46 +854,251 @@ export default function Disputes() {
             completedSteps={milestones.completed}
             onUploadClick={(type) => {
               if (type === 'docs') {
-                navigate('/vault?upload=docs')
+                setActiveOnboardingStep(1)
+                scrollToSection(docsSectionRef)
               } else {
-                navigate('/vault?upload=report')
+                setActiveOnboardingStep(2)
+                scrollToSection(reportSectionRef)
               }
             }}
           />
         </div>
 
         {/* Current Step Action Card */}
-        {!loading && milestones.current <= 2 && (
+        <div className="space-y-6 mb-8">
           <div
-            className="rounded-2xl p-6 mb-6"
-            style={{ background: 'linear-gradient(145deg, rgba(212, 175, 55, 0.1) 0%, rgba(18, 16, 26, 0.9) 100%)', border: '1px solid rgba(212, 175, 55, 0.4)' }}
+            ref={docsSectionRef}
+            className={`rounded-2xl p-6 transition-colors ${
+              activeOnboardingStep === 1 ? 'border border-gold/50 bg-wizard-indigo/20' : 'border border-wizard-indigo/30 bg-wizard-black/40'
+            }`}
           >
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-r from-gold to-yellow-500 flex items-center justify-center text-2xl animate-pulse shadow-lg shadow-gold/30">
-                {milestones.current === 1 ? '📄' : '📊'}
+            <button
+              onClick={() => setActiveOnboardingStep(1)}
+              className="flex w-full items-center justify-between text-left"
+            >
+              <div>
+                <p className="text-xs text-gold mb-1" style={{ fontFamily: 'var(--font-pixel)' }}>DOCS</p>
+                <h3 className="text-lg font-semibold text-white">Upload your identity documents</h3>
+                <p className="text-sm text-gray-400 mt-1">Progress: {docsProgress}/3 documents uploaded</p>
               </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white" style={{ fontFamily: 'var(--font-pixel)' }}>
-                  {milestones.current === 1 ? 'UPLOAD YOUR DOCUMENTS' : 'UPLOAD CREDIT REPORT'}
-                </h3>
-                <p className="text-gray-400 mt-1 text-sm">
-                  {milestones.current === 1
-                    ? 'Start by uploading your Government ID, Social Security Card, and Proof of Address to verify your identity.'
-                    : 'Upload your credit report so our AI can analyze it and identify negative items to dispute.'}
-                </p>
-                <Link
-                  to="/vault"
-                  className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark font-semibold rounded-lg hover:opacity-90 transition-opacity"
-                >
-                  {milestones.current === 1 ? 'Upload Documents' : 'Upload Credit Report'}
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-              </div>
+              <span className="text-2xl">📄</span>
+            </button>
+
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+              {documentSlots.map((slot) => {
+                const slotDocs = getDocumentsByType(slot.type)
+                const isComplete = slotDocs.length >= slot.requiredCount
+                const isUploading = uploadingDoc === slot.type
+
+                return (
+                  <div
+                    key={slot.type}
+                    className={`rounded-xl p-4 border ${
+                      isComplete ? 'border-green-500/40 bg-green-500/10' : 'border-wizard-indigo/30 bg-wizard-dark/40'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-semibold text-white">{slot.label}</h4>
+                        <p className="text-xs text-gray-400">{slot.description}</p>
+                      </div>
+                      {isComplete && (
+                        <span className="text-green-400">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {slotDocs.map((doc) => {
+                        const previewUrl = documentUrls[doc.id]
+                        return (
+                          <div key={doc.id} className="flex items-center gap-2 rounded-lg bg-wizard-black/50 p-2">
+                            {previewUrl && isImageFile(doc.file_name) ? (
+                              <img src={previewUrl} alt={doc.file_name} className="h-10 w-10 rounded object-cover" />
+                            ) : (
+                              <div className="h-10 w-10 rounded bg-wizard-indigo/30 flex items-center justify-center text-lg">
+                                📄
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-300">
+                              <p className="truncate max-w-[120px]">{doc.file_name}</p>
+                              <p className="text-gray-500">{formatFileSize(doc.file_size)}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="mt-4">
+                      <input
+                        ref={(el) => { fileInputRefs.current[slot.type] = el }}
+                        type="file"
+                        accept={slot.acceptedTypes}
+                        onChange={(e) => {
+                          const selectedFile = e.target.files?.[0]
+                          if (selectedFile) {
+                            handleDocumentUpload(slot.type, selectedFile)
+                          }
+                          e.target.value = ''
+                        }}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => fileInputRefs.current[slot.type]?.click()}
+                        disabled={isUploading || slotDocs.length >= slot.requiredCount}
+                        className={`w-full py-2 text-sm rounded-lg transition-colors ${
+                          slotDocs.length >= slot.requiredCount
+                            ? 'bg-green-500/20 text-green-300 cursor-not-allowed'
+                            : 'bg-wizard-indigo/40 text-white hover:bg-wizard-indigo/60'
+                        }`}
+                      >
+                        {isUploading ? 'Uploading...' : slotDocs.length >= slot.requiredCount ? 'Uploaded' : 'Upload'}
+                      </button>
+                      <p className="mt-2 text-[11px] text-gray-500">
+                        {slotDocs.length}/{slot.requiredCount} files
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
-        )}
+
+          <div
+            ref={reportSectionRef}
+            className={`rounded-2xl p-6 transition-colors ${
+              activeOnboardingStep === 2 ? 'border border-gold/50 bg-wizard-indigo/20' : 'border border-wizard-indigo/30 bg-wizard-black/40'
+            }`}
+          >
+            <button
+              onClick={() => docsUploaded && setActiveOnboardingStep(2)}
+              className="flex w-full items-center justify-between text-left"
+              disabled={!docsUploaded}
+            >
+              <div>
+                <p className="text-xs text-gold mb-1" style={{ fontFamily: 'var(--font-pixel)' }}>REPORT</p>
+                <h3 className="text-lg font-semibold text-white">Upload your credit report</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  {docsUploaded ? 'PDF uploads supported.' : 'Complete DOCS to unlock.'}
+                </p>
+              </div>
+              <span className={`text-2xl ${docsUploaded ? '' : 'opacity-50'}`}>📊</span>
+            </button>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`rounded-xl p-4 border ${docsUploaded ? 'border-wizard-indigo/30 bg-wizard-dark/40' : 'border-gray-700/50 bg-gray-800/40'}`}>
+                <h4 className="text-sm font-semibold text-white">{creditReportSlot.label}</h4>
+                <p className="text-xs text-gray-400">{creditReportSlot.description}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {getDocumentsByType(creditReportSlot.type).map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-2 rounded-lg bg-wizard-black/50 p-2">
+                      <div className="h-10 w-10 rounded bg-wizard-indigo/30 flex items-center justify-center text-lg">
+                        📄
+                      </div>
+                      <div className="text-xs text-gray-300">
+                        <p className="truncate max-w-[140px]">{doc.file_name}</p>
+                        <p className="text-gray-500">{formatFileSize(doc.file_size)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4">
+                  <input
+                    ref={(el) => { fileInputRefs.current[creditReportSlot.type] = el }}
+                    type="file"
+                    accept={creditReportSlot.acceptedTypes}
+                    onChange={(e) => {
+                      const selectedFile = e.target.files?.[0]
+                      if (selectedFile) {
+                        handleDocumentUpload(creditReportSlot.type, selectedFile)
+                      }
+                      e.target.value = ''
+                    }}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRefs.current[creditReportSlot.type]?.click()}
+                    disabled={!docsUploaded || uploadingDoc === creditReportSlot.type}
+                    className={`w-full py-2 text-sm rounded-lg transition-colors ${
+                      !docsUploaded
+                        ? 'bg-gray-700/40 text-gray-500 cursor-not-allowed'
+                        : 'bg-wizard-indigo/40 text-white hover:bg-wizard-indigo/60'
+                    }`}
+                  >
+                    {uploadingDoc === creditReportSlot.type ? 'Uploading...' : 'Upload Credit Report'}
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-xl p-4 border border-gray-700/50 bg-gray-800/40">
+                <h4 className="text-sm font-semibold text-white">Connect to pull automatically</h4>
+                <p className="text-xs text-gray-500">Future feature — coming soon.</p>
+                <button
+                  disabled
+                  className="mt-4 w-full py-2 text-sm rounded-lg bg-gray-700/40 text-gray-500 cursor-not-allowed"
+                >
+                  Connect (Coming Soon)
+                </button>
+              </div>
+            </div>
+
+            {analysisStatus === 'analyzing' && (
+              <div className="mt-4 flex items-center gap-3 text-gold text-sm">
+                <div className="w-4 h-4 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+                Analyzing report...
+              </div>
+            )}
+            {analysisStatus === 'error' && analysisMessage && (
+              <p className="mt-3 text-sm text-red-400">{analysisMessage}</p>
+            )}
+          </div>
+
+          <div
+            className={`rounded-2xl p-6 transition-colors ${
+              activeOnboardingStep === 3 ? 'border border-gold/50 bg-wizard-indigo/20' : 'border border-wizard-indigo/30 bg-wizard-black/40'
+            }`}
+          >
+            <button
+              onClick={() => creditReportUploaded && setActiveOnboardingStep(3)}
+              className="flex w-full items-center justify-between text-left"
+              disabled={!creditReportUploaded}
+            >
+              <div>
+                <p className="text-xs text-gold mb-1" style={{ fontFamily: 'var(--font-pixel)' }}>ANALYSIS</p>
+                <h3 className="text-lg font-semibold text-white">AI report analysis</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  {creditReportUploaded ? 'Summary appears when analysis completes.' : 'Upload a credit report to begin analysis.'}
+                </p>
+              </div>
+              <span className={`text-2xl ${creditReportUploaded ? '' : 'opacity-50'}`}>🔍</span>
+            </button>
+
+            {analysisStatus === 'complete' && selectedCaseData?.ai_summary && (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-gray-200 leading-relaxed">{selectedCaseData.ai_summary}</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs text-gray-400">
+                    Identified items: <span className="text-gold font-semibold">{caseItems.length}</span>
+                  </span>
+                  <button
+                    onClick={() => setActiveTab('items')}
+                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-gold to-yellow-500 text-wizard-dark"
+                  >
+                    View Disputed Items
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {analysisStatus !== 'complete' && (
+              <p className="mt-3 text-sm text-gray-500">
+                {analysisStatus === 'analyzing' ? 'AI is reviewing your report.' : 'Analysis will unlock dispute tracking once complete.'}
+              </p>
+            )}
+          </div>
+        </div>
 
         {cases.length > 0 && (
           <>

@@ -337,6 +337,7 @@ function TrackingPhase({
   const isCurrent = (id: number) => id === currentStep
   const isPending = (id: number) => !isCompleted(id) && !isCurrent(id)
   const isActive = (id: number) => isCompleted(id) || isCurrent(id)
+  const analysisComplete = completedSteps.includes(3)
 
   const handleStepClick = (stepId: number) => {
     if (isActive(stepId)) {
@@ -372,7 +373,7 @@ function TrackingPhase({
   }
 
   // Only show tracking if past onboarding
-  if (currentStep < 4 && completedSteps.filter(s => s >= 4).length === 0) {
+  if (!analysisComplete && currentStep < 4 && completedSteps.filter(s => s >= 4).length === 0) {
     return (
       <div className="opacity-50">
         <h4 className="text-xs text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
