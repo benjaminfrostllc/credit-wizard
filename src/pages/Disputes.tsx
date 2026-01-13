@@ -498,6 +498,8 @@ export default function Disputes() {
   const selectedCaseData = cases.find(c => c.id === selectedCase)
   const caseItems = items.filter(i => i.case_id === selectedCase)
   const caseRounds = rounds.filter(r => r.case_id === selectedCase)
+  const getDocumentsByType = (type: string) => documents.filter(doc => doc.document_type === type)
+  const docsProgress = documentSlots.filter(slot => getDocumentsByType(slot.type).length >= slot.requiredCount).length
 
   useEffect(() => {
     if (user?.id) {
@@ -630,9 +632,6 @@ export default function Disputes() {
 
   const milestones = calculateMilestones()
 
-  const getDocumentsByType = (type: string) => documents.filter(doc => doc.document_type === type)
-  const docsProgress = documentSlots.filter(slot => getDocumentsByType(slot.type).length >= slot.requiredCount).length
-
   const formatFileSize = (size: number) => {
     if (!size) return '0 KB'
     const kb = size / 1024
@@ -643,7 +642,7 @@ export default function Disputes() {
 
   const isImageFile = (fileName: string) => /\.(png|jpe?g|gif|webp)$/i.test(fileName)
 
-  const scrollToSection = (ref: RefObject<HTMLDivElement>) => {
+  const scrollToSection = (ref: RefObject<HTMLDivElement | null>) => {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
