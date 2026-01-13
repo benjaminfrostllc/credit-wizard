@@ -16,7 +16,7 @@ import {
   type UserProfile,
   type ClientTask,
 } from '../lib/supabase'
-import { saveAccount, trustDevice, untrustDevice, getTrustedRefreshToken } from '../lib/savedAccounts'
+import { saveAccount, trustDevice, untrustDevice, getTrustedRefreshToken, getSessionRefreshToken, updateSessionRefreshToken } from '../lib/savedAccounts'
 import type { User } from '@supabase/supabase-js'
 
 // Section keys - new FINANCIAL ASCENT structure
@@ -47,6 +47,7 @@ interface AppContextType extends AppState {
   // Auth methods
   login: (email: string, password: string, options?: { trustDevice?: boolean }) => Promise<{ success: boolean; error: string | null; session?: { refresh_token: string } }>
   loginWithTrustedDevice: (accountId: string) => Promise<{ success: boolean; error: string | null }>
+  switchAccount: (accountId: string) => Promise<{ success: boolean; error: string | null }>
   signup: (email: string, password: string, fullName: string) => Promise<{ success: boolean; error: string | null }>
   logout: () => Promise<void>
   trustCurrentDevice: () => Promise<boolean>
@@ -206,10 +207,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }).catch(console.error)
 
     // Listen for sign out
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return
       if (event === 'SIGNED_OUT') {
         setState({ ...defaultState })
+        return
+      }
+
+      if (session?.user?.id && session.refresh_token) {
+        updateSessionRefreshToken(session.user.id, session.refresh_token)
       }
     })
 
@@ -235,6 +241,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (options?.trustDevice && session.refresh_token) {
       trustDevice(user.id, session.refresh_token)
     }
+    if (session.refresh_token) {
+      updateSessionRefreshToken(user.id, session.refresh_token)
+    }
 
     // Set authenticated
     setState((prev) => ({
@@ -252,6 +261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           email: user.email || '',
           name: profile.full_name || user.email || '',
           isAdmin: profile.role === 'admin',
+          sessionRefreshToken: session.refresh_token,
         })
         setState((prev) => ({
           ...prev,
@@ -300,6 +310,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Update refresh token if rotated
     if (session.refresh_token) {
       trustDevice(user.id, session.refresh_token)
+      updateSessionRefreshToken(user.id, session.refresh_token)
     }
 
     // Set authenticated
@@ -318,6 +329,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
           email: user.email || '',
           name: profile.full_name || user.email || '',
           isAdmin: profile.role === 'admin',
+          sessionRefreshToken: session.refresh_token,
+        })
+        setState((prev) => ({
+          ...prev,
+          isAdmin: profile.role === 'admin',
+          profile,
+          clientName: profile.full_name || user.email || '',
+        }))
+      }
+    }).catch(console.error)
+
+    initializeClientTasks(user.id)
+      .then(() => loadAllTasksRef.current(user.id))
+      .then((result) => {
+        setState((prev) => ({
+          ...prev,
+          ...result.tasks,
+          progress: result.progress,
+        }))
+      })
+      .catch(console.error)
+
+    return { success: true, error: null }
+  }
+
+  const switchAccount = async (
+    accountId: string
+  ): Promise<{ success: boolean; error: string | null }> => {
+    const refreshToken = getSessionRefreshToken(accountId)
+
+    if (!refreshToken) {
+      return { success: false, error: 'Session expired. Please log in again.' }
+    }
+
+    const { user, session, error } = await signInWithRefreshToken(refreshToken)
+
+    if (error || !user || !session) {
+      return { success: false, error: error || 'Session expired. Please log in again.' }
+    }
+
+    if (session.refresh_token) {
+      updateSessionRefreshToken(user.id, session.refresh_token)
+    }
+
+    setState((prev) => ({
+      ...prev,
+      isAuthenticated: true,
+      user: user,
+      clientId: user.id,
+    }))
+
+    getUserProfile(user.id).then((profile) => {
+      if (profile) {
+        saveAccount({
+          id: user.id,
+          email: user.email || '',
+          name: profile.full_name || user.email || '',
+          isAdmin: profile.role === 'admin',
+          sessionRefreshToken: session.refresh_token,
         })
         setState((prev) => ({
           ...prev,
@@ -491,6 +561,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...state,
         login,
         loginWithTrustedDevice,
+        switchAccount,
         signup,
         logout,
         trustCurrentDevice,
