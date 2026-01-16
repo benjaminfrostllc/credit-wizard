@@ -1581,26 +1581,33 @@ export async function createPlaidLinkToken(): Promise<{ link_token: string; erro
   }
 
   console.log('[Plaid] Creating link token...')
-  const { data, error } = await supabase.functions.invoke('create-plaid-link-token', {
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-    },
-  })
+  try {
+    const response = await fetch('/plaid/link_token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
 
-  console.log('[Plaid] Response:', { data, error })
+    const data = await response.json()
 
-  if (error) {
-    console.error('[Plaid] Error creating link token:', error)
+    console.log('[Plaid] Response:', data)
+
+    if (!response.ok) {
+      console.error('[Plaid] Error creating link token:', data)
+      return { link_token: '', error: data.details || data.error || 'Failed to create link token' }
+    }
+
+    if (data?.error) {
+      console.error('[Plaid] Edge function error:', data.error, data.details)
+      return { link_token: '', error: data.details || data.error }
+    }
+
+    return data
+  } catch (err) {
+    console.error('[Plaid] Exception creating link token:', err)
     return null
   }
-
-  // Check if the response contains an error from the Edge Function
-  if (data?.error) {
-    console.error('[Plaid] Edge function error:', data.error, data.details)
-    return { link_token: '', error: data.details || data.error }
-  }
-
-  return data
 }
 
 // Exchange Plaid public token for access token via Edge Function
@@ -1616,37 +1623,26 @@ export async function exchangePlaidToken(
   console.log('[Plaid] Exchanging token for:', institution.name)
 
   try {
-    const { data, error } = await supabase.functions.invoke('exchange-plaid-token', {
+    const response = await fetch('/plaid/exchange_public_token', {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
       },
-      body: {
+      body: JSON.stringify({
         public_token: publicToken,
         institution,
-      },
+      }),
     })
 
-    console.log('[Plaid] Exchange response:', { data, error })
+    const data = await response.json()
+    console.log('[Plaid] Exchange response:', data)
 
-    if (error) {
-      console.error('[Plaid] Error exchanging token:', error)
-      // Try to extract more details from the error
-      const errorMsg = error.message || 'Exchange failed'
-      // Check if error has context with more details
-      const context = (error as { context?: { body?: string } }).context
-      if (context?.body) {
-        try {
-          const bodyError = JSON.parse(context.body)
-          console.error('[Plaid] Error details:', bodyError)
-          return { success: false, error: bodyError.details || bodyError.error || errorMsg }
-        } catch {
-          // Body wasn't JSON
-        }
-      }
-      return { success: false, error: errorMsg }
+    if (!response.ok) {
+      console.error('[Plaid] Error exchanging token:', data)
+      return { success: false, error: data.details || data.error || 'Exchange failed' }
     }
 
-    // Check for error in the response data (Edge Function can return errors in body)
     if (data?.error) {
       console.error('[Plaid] Edge function returned error:', data.error, data.details)
       return { success: false, error: data.details || data.error }
@@ -1931,16 +1927,20 @@ export async function syncTransactions(
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke('sync-transactions', {
+    const response = await fetch('/plaid/sync', {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
       },
-      body: connectionId ? { connection_id: connectionId } : {},
+      body: JSON.stringify(connectionId ? { connection_id: connectionId } : {}),
     })
 
-    if (error) {
-      console.error('Sync transactions error:', error)
-      return { success: false, error: error.message }
+    const data = await response.json()
+
+    if (!response.ok) {
+      console.error('Sync transactions error:', data)
+      return { success: false, error: data.details || data.error || 'Sync failed' }
     }
 
     return {

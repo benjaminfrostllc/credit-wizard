@@ -122,7 +122,7 @@ export function PlaidLinkModal({ isOpen, onClose, onSuccess }: PlaidLinkModalPro
           className="text-lg font-bold text-white mb-4"
           style={{ fontFamily: 'var(--font-pixel)' }}
         >
-          CONNECT BANK
+          CONNECT ACCOUNTS
         </h3>
 
         {loading && (
