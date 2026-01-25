@@ -9,13 +9,15 @@
 **Tagline**: Your Business Credit Command Center
 
 ### Domains
-- **leverabase.com** - Primary domain
-- **leverabase.app** - App domain
-- **App URL**: https://leverabase.com/app
+- **leverabase.com** - Primary website
+- **leverabase.app** - App domain (alternate)
+- **App URL**: https://leverabase.com/app (reserved for MVP launch)
 - **benjaminfrostllc.com** - Company landing page
 
 ### Positioning
-Leverabase is a premium business credit building platform that provides a one-of-a-kind customer experience that other credit companies cannot easily replicate. It combines AI guidance, bank integration, and a structured 7-stage system.
+Leverabase is a **human consulting platform powered by cutting-edge AI technology**. It's a team of expert consultants helping clients build business credit, secure funding, and accelerate growth with personalized guidance. The platform provides a one-of-a-kind customer experience that other credit companies cannot easily replicate, combining human expertise, AI guidance, bank integration, and a structured 7-stage system.
+
+**Key Messaging**: Clients of Benjamin Frost LLC get exclusive access to the talented minds at Leverabase.
 
 ---
 
