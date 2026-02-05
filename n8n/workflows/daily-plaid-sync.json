@@ -1,0 +1,179 @@
+{
+  "name": "Daily Plaid Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyDay",
+              "hour": 2,
+              "minute": 0
+            }
+          ]
+        }
+      },
+      "id": "CronDaily",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.PLAID_BASE_URL}}/transactions/sync",
+        "jsonParameters": true,
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        },
+        "bodyParametersJson": "={\n  \"client_id\": \"{{$env.PLAID_CLIENT_ID}}\",\n  \"secret\": \"{{$env.PLAID_SECRET}}\",\n  \"access_token\": \"{{$env.PLAID_ACCESS_TOKEN}}\"\n}"
+      },
+      "id": "PlaidSync",
+      "name": "Plaid Sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/plaid_transactions?on_conflict=transaction_id",
+        "jsonParameters": true,
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        },
+        "headerParametersJson": "={\n  \"apikey\": \"{{$env.SUPABASE_SERVICE_ROLE_KEY}}\",\n  \"Authorization\": \"Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}\",\n  \"Content-Type\": \"application/json\"\n}",
+        "bodyParametersJson": "={{JSON.stringify($json.added || [])}}"
+      },
+      "id": "UpdateDB",
+      "name": "Update DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVENTS_BASE_URL}}/plaid/sync",
+        "jsonParameters": true,
+        "options": {
+          "retryOnFail": true,
+          "maxTries": 3,
+          "waitBetweenTries": 1000
+        },
+        "bodyParametersJson": "={\n  \"synced_at\": \"{{$now.toISO()}}\",\n  \"added_count\": {{$json.added ? $json.added.length : 0}},\n  \"modified_count\": {{$json.modified ? $json.modified.length : 0}},\n  \"removed_count\": {{$json.removed ? $json.removed.length : 0}}\n}"
+      },
+      "id": "EmitEvents",
+      "name": "Emit Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "synced_at",
+              "value": "={{$now.toISO()}}"
+            }
+          ],
+          "number": [
+            {
+              "name": "added_count",
+              "value": "={{$json.added ? $json.added.length : 0}}"
+            },
+            {
+              "name": "modified_count",
+              "value": "={{$json.modified ? $json.modified.length : 0}}"
+            },
+            {
+              "name": "removed_count",
+              "value": "={{$json.removed ? $json.removed.length : 0}}"
+            }
+          ]
+        }
+      },
+      "id": "SetOutput",
+      "name": "Set Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Plaid Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plaid Sync": {
+      "main": [
+        [
+          {
+            "node": "Update DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update DB": {
+      "main": [
+        [
+          {
+            "node": "Emit Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emit Events": {
+      "main": [
+        [
+          {
+            "node": "Set Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
