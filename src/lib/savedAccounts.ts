@@ -8,6 +8,7 @@ export interface SavedAccount {
   // Trust device feature - allows passwordless login
   isTrusted?: boolean
   refreshToken?: string
+  sessionRefreshToken?: string
   // Device info for display
   deviceName?: string
 }
@@ -85,6 +86,7 @@ export function saveAccount(
       lastUsed: now,
       isTrusted: options?.trustDevice || false,
       refreshToken: options?.trustDevice ? options.refreshToken : undefined,
+      sessionRefreshToken: account.sessionRefreshToken,
       deviceName: options?.trustDevice ? getDeviceName() : undefined,
     })
   }
@@ -102,6 +104,17 @@ export function updateLastUsed(id: string): void {
   }
 }
 
+export function updateSessionRefreshToken(id: string, refreshToken: string): void {
+  const accounts = getSavedAccounts()
+  const index = accounts.findIndex((a) => a.id === id)
+
+  if (index >= 0) {
+    accounts[index].sessionRefreshToken = refreshToken
+    accounts[index].lastUsed = new Date().toISOString()
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts))
+  }
+}
+
 // Trust a device for an account (enables passwordless login)
 export function trustDevice(id: string, refreshToken: string): void {
   const accounts = getSavedAccounts()
@@ -113,6 +126,12 @@ export function trustDevice(id: string, refreshToken: string): void {
     accounts[index].deviceName = getDeviceName()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts))
   }
+}
+
+export function getSessionRefreshToken(id: string): string | undefined {
+  const accounts = getSavedAccounts()
+  const account = accounts.find((a) => a.id === id)
+  return account?.sessionRefreshToken
 }
 
 // Revoke trust for an account on this device

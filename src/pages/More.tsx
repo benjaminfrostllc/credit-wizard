@@ -13,12 +13,14 @@ import {
 } from '../lib/savedAccounts'
 
 function More() {
-  const { user, profile, logout, trustCurrentDevice } = useApp()
+  const { user, profile, logout, trustCurrentDevice, switchAccount } = useApp()
   const navigate = useNavigate()
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false)
   const [showDeviceTrust, setShowDeviceTrust] = useState(false)
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
   const [isTrusting, setIsTrusting] = useState(false)
+  const [switchingAccountId, setSwitchingAccountId] = useState<string | null>(null)
+  const [switchError, setSwitchError] = useState<string | null>(null)
 
   // Load saved accounts
   useEffect(() => {
@@ -32,11 +34,17 @@ function More() {
     navigate('/')
   }
 
-  const handleSwitchToAccount = async () => {
-    // Log out current user and navigate to login with the account pre-selected
-    await logout()
-    // The login page will show saved accounts, user can enter password
-    navigate('/')
+  const handleSwitchToAccount = async (accountId: string) => {
+    setSwitchError(null)
+    setSwitchingAccountId(accountId)
+    const result = await switchAccount(accountId)
+    setSwitchingAccountId(null)
+    if (!result.success) {
+      setSwitchError(result.error || 'Unable to switch accounts right now.')
+      return
+    }
+    setShowAccountSwitcher(false)
+    navigate('/dashboard')
   }
 
   const handleAddAccount = async () => {
@@ -94,6 +102,13 @@ function More() {
       label: 'Calendar',
       description: 'View your schedule',
       path: '/calendar',
+    },
+    {
+      id: 'budgeting',
+      icon: '🧮',
+      label: 'Budgeting',
+      description: 'Track budgets, goals, and net worth',
+      path: '/budgeting',
     },
     {
       id: 'notifications',
@@ -250,6 +265,11 @@ function More() {
             </h3>
 
             <div className="space-y-3">
+              {switchError && (
+                <div className="p-3 rounded-lg text-xs text-vault-error bg-vault-error/10 border border-vault-error/40">
+                  {switchError}
+                </div>
+              )}
               {/* Current Account */}
               <div className="p-4 bg-wizard-purple rounded-xl border-2 border-wizard-accent">
                 <div className="flex items-center gap-3">
@@ -287,10 +307,11 @@ function More() {
                         </div>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleSwitchToAccount()}
-                            className="px-3 py-1.5 bg-wizard-accent/20 hover:bg-wizard-accent text-wizard-accent hover:text-white text-xs font-medium rounded-lg transition-colors"
+                            onClick={() => handleSwitchToAccount(account.id)}
+                            disabled={switchingAccountId === account.id}
+                            className="px-3 py-1.5 bg-wizard-accent/20 hover:bg-wizard-accent text-wizard-accent hover:text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-60"
                           >
-                            Switch
+                            {switchingAccountId === account.id ? 'Switching...' : 'Switch'}
                           </button>
                           <button
                             onClick={() => handleRemoveAccount(account.id)}
