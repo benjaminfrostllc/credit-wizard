@@ -39,16 +39,24 @@ function PieChart({ data }: { data: SpendingByCategory[] }) {
   const total = data.reduce((sum, item) => sum + item.total, 0)
 
   // Calculate pie segments
-  let cumulativePercent = 0
-  const segments = data.slice(0, 8).map((item) => {
-    const startPercent = cumulativePercent
-    cumulativePercent += item.percentage
-    return {
-      ...item,
-      startPercent,
-      endPercent: cumulativePercent,
-    }
-  })
+  const segments = data.slice(0, 8).reduce<{ segments: Array<SpendingByCategory & { startPercent: number; endPercent: number }>; cumulative: number }>(
+    (acc, item) => {
+      const startPercent = acc.cumulative
+      const endPercent = startPercent + item.percentage
+      return {
+        segments: [
+          ...acc.segments,
+          {
+            ...item,
+            startPercent,
+            endPercent,
+          },
+        ],
+        cumulative: endPercent,
+      }
+    },
+    { segments: [], cumulative: 0 }
+  ).segments
 
   // Convert percentage to SVG arc coordinates
   const getCoordinatesForPercent = (percent: number) => {

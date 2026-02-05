@@ -39,20 +39,18 @@ export default function Treasury() {
   const [accounts, setAccounts] = useState<BankAccount[]>([])
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set())
 
-  // Load bank connections and accounts on mount
-  useEffect(() => {
-    if (user?.id) {
-      loadConnections()
-    }
-  }, [user?.id])
+  const fetchConnections = async (userId: string) => {
+    const [connectionsData, accountsData] = await Promise.all([
+      getBankConnections(userId),
+      getBankAccounts(userId),
+    ])
+    return { connectionsData, accountsData }
+  }
 
-  const loadConnections = async () => {
+  const refreshConnections = async () => {
     if (!user?.id) return
     try {
-      const [connectionsData, accountsData] = await Promise.all([
-        getBankConnections(user.id),
-        getBankAccounts(user.id),
-      ])
+      const { connectionsData, accountsData } = await fetchConnections(user.id)
       console.log('[Treasury] Loaded bank connections:', connectionsData)
       console.log('[Treasury] Loaded bank accounts:', accountsData)
       setConnections(connectionsData)
@@ -61,6 +59,31 @@ export default function Treasury() {
       console.error('Failed to load bank data:', err)
     }
   }
+
+  // Load bank connections and accounts on mount
+  useEffect(() => {
+    if (!user?.id) return
+    let isActive = true
+
+    const loadConnections = async () => {
+      try {
+        const { connectionsData, accountsData } = await fetchConnections(user.id)
+        if (!isActive) return
+        console.log('[Treasury] Loaded bank connections:', connectionsData)
+        console.log('[Treasury] Loaded bank accounts:', accountsData)
+        setConnections(connectionsData)
+        setAccounts(accountsData)
+      } catch (err) {
+        console.error('Failed to load bank data:', err)
+      }
+    }
+
+    loadConnections()
+
+    return () => {
+      isActive = false
+    }
+  }, [user?.id])
 
   // Create a map from bank name to connection (matching by institution name)
   // This is more reliable than treasury_bank_prefix which depends on Plaid institution IDs
@@ -133,7 +156,7 @@ export default function Treasury() {
     // Auto-expand the newly connected bank
     setExpandedConnections((prev) => new Set(prev).add(connection.id))
     // Reload accounts to get the new accounts
-    loadConnections()
+    refreshConnections()
   }
 
   const toggleConnectionExpanded = (connectionId: string) => {

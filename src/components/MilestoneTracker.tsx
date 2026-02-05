@@ -64,8 +64,6 @@ const trackingSteps: MilestoneStep[] = [
   { id: 8, title: 'RESOLVED', subtitle: 'Complete', icon: '🏆', phase: 'tracking' },
 ]
 
-export const disputeSteps = [...onboardingSteps, ...trackingSteps]
-
 // Instruction Modal Component
 function InstructionModal({
   step,
