@@ -96,6 +96,13 @@ function More() {
       path: '/calendar',
     },
     {
+      id: 'goals',
+      icon: '🎯',
+      label: 'Goals',
+      description: 'Track savings and debt payoff goals',
+      path: '/goals',
+    },
+    {
       id: 'notifications',
       icon: '🔔',
       label: 'Notifications',
