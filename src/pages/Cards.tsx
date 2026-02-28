@@ -55,6 +55,17 @@ interface LinkedCard {
   created_at: string
 }
 
+interface DebtCenterCard {
+  id: string
+  name: string
+  balance: number
+  limit: number
+  utilization: number
+  statementDate?: number
+  dueDate?: number
+  source: 'manual' | 'plaid'
+}
+
 // Calculate estimated minimum payment
 function calculateMinPayment(balance: number, apr: number): number {
   if (balance <= 0) return 0
@@ -74,6 +85,11 @@ function getDaysUntilDue(dueDate: number): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 }
 
+function formatOrdinalDay(day: number): string {
+  const suffix = ['st', 'nd', 'rd'][((day + 90) % 100 - 10) % 10 - 1] || 'th'
+  return `${day}${suffix}`
+}
+
 type TabType = 'my-cards' | 'marketplace'
 
 function Cards() {
@@ -90,6 +106,9 @@ function Cards() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingCard, setEditingCard] = useState<CreditCard | null>(null)
   const [saving, setSaving] = useState(false)
+  const [targetUtilization, setTargetUtilization] = useState(30)
+  const [utilizationAlert, setUtilizationAlert] = useState(30)
+  const [statementDateOverrides, setStatementDateOverrides] = useState<Record<string, string>>({})
 
   // Carry items state
   const [carryItems, setCarryItems] = useState<CarryItem[]>([])
@@ -331,6 +350,34 @@ function Cards() {
   const totalDebitBalance = plaidDebitAccounts.reduce((sum, a) => sum + (a.balance_current || 0), 0)
   const totalDebitAvailable = plaidDebitAccounts.reduce((sum, a) => sum + (a.balance_available || a.balance_current || 0), 0)
 
+  const debtCenterCards: DebtCenterCard[] = [
+    ...cards.map(card => ({
+      id: `manual-${card.id}`,
+      name: card.nickname || bankOptions.find(b => b.id === card.bankId)?.name || 'Manual Card',
+      balance: card.currentBalance,
+      limit: card.creditLimit,
+      utilization: card.creditLimit > 0 ? (card.currentBalance / card.creditLimit) * 100 : 0,
+      statementDate: card.statementDate || undefined,
+      dueDate: card.dueDate || undefined,
+      source: 'manual' as const,
+    })),
+    ...plaidCreditAccounts.map(account => {
+      const override = statementDateOverrides[account.id]
+      const statementDate = override ? Number(override) : undefined
+      const limit = account.balance_limit || 0
+      const balance = account.balance_current || 0
+      return {
+        id: `plaid-${account.id}`,
+        name: account.name,
+        balance,
+        limit,
+        utilization: limit > 0 ? (balance / limit) * 100 : 0,
+        statementDate,
+        source: 'plaid' as const,
+      }
+    }),
+  ].filter(card => card.limit > 0 || card.balance > 0)
+
   return (
     <div className="min-h-screen bg-vault-black pb-24">
       {/* Header */}
@@ -414,6 +461,141 @@ function Cards() {
               }`}
               style={{ width: `${Math.min(overallUtilization, 100)}%` }}
             />
+          </div>
+        </div>
+
+        {/* Debt Center */}
+        <div className="rounded-2xl p-4 space-y-4" style={{ background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.7) 100%)', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-sky-300">DEBT CENTER</h2>
+              <p className="text-xs text-vault-silver-dark">Track utilization and pay down before statement close.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-xs text-vault-silver-dark flex items-center gap-2">
+                Target Utilization
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={targetUtilization}
+                  onChange={(event) => setTargetUtilization(Number(event.target.value || 0))}
+                  className="w-16 bg-vault-black/60 border border-vault-silver/20 rounded px-2 py-1 text-white text-xs"
+                />
+                %
+              </label>
+              <label className="text-xs text-vault-silver-dark flex items-center gap-2">
+                Alert at
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={utilizationAlert}
+                  onChange={(event) => setUtilizationAlert(Number(event.target.value || 0))}
+                  className="w-16 bg-vault-black/60 border border-vault-silver/20 rounded px-2 py-1 text-white text-xs"
+                />
+                %
+              </label>
+            </div>
+          </div>
+
+          {debtCenterCards.length === 0 ? (
+            <div className="text-center py-6 border border-dashed rounded-xl border-sky-400/30">
+              <p className="text-sm text-sky-200">Add a credit card to see utilization paydown guidance.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {debtCenterCards.map(card => {
+                const targetBalance = card.limit * (targetUtilization / 100)
+                const paydownNeeded = Math.max(0, card.balance - targetBalance)
+                const alert = card.utilization > utilizationAlert
+                const statementLabel = card.statementDate ? `Statement closes on ${formatOrdinalDay(card.statementDate)}` : 'Statement close date needed'
+                const dueLabel = card.dueDate ? `Due on ${formatOrdinalDay(card.dueDate)}` : null
+
+                return (
+                  <div key={card.id} className="bg-vault-black/60 rounded-xl p-3 border border-sky-400/20">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{card.name}</p>
+                        <p className="text-xs text-vault-silver-dark">
+                          Balance ${card.balance.toLocaleString()} / Limit ${card.limit.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-semibold ${alert ? 'text-vault-warning' : 'text-vault-success'}`}>
+                          {card.utilization.toFixed(1)}% utilization
+                        </p>
+                        <p className="text-xs text-vault-silver-dark">{statementLabel}</p>
+                        {dueLabel && <p className="text-xs text-vault-silver-dark">{dueLabel}</p>}
+                      </div>
+                    </div>
+
+                    <div className="mt-2">
+                      <div className="h-1.5 bg-vault-black rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${alert ? 'bg-vault-warning' : 'bg-vault-success'}`}
+                          style={{ width: `${Math.min(card.utilization, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="text-vault-silver-dark">
+                        Target balance: ${targetBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      </div>
+                      {paydownNeeded > 0 ? (
+                        <div className="text-sky-300 font-semibold">
+                          Pay ${paydownNeeded.toLocaleString('en-US', { maximumFractionDigits: 0 })} before statement close
+                        </div>
+                      ) : (
+                        <div className="text-vault-success font-semibold">On target for statement close</div>
+                      )}
+                    </div>
+
+                    {!card.statementDate && card.source === 'plaid' && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-vault-silver-dark">Set statement close day:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={31}
+                          value={statementDateOverrides[card.id.replace('plaid-', '')] || ''}
+                          onChange={(event) =>
+                            setStatementDateOverrides(prev => ({
+                              ...prev,
+                              [card.id.replace('plaid-', '')]: event.target.value,
+                            }))
+                          }
+                          className="w-20 bg-vault-black/60 border border-vault-silver/20 rounded px-2 py-1 text-white text-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="bg-vault-black/40 rounded-xl p-3 text-xs text-vault-silver-dark">
+            <p className="text-white text-xs font-semibold mb-2">Example calculations</p>
+            {debtCenterCards.length > 0 ? (
+              <ul className="space-y-1">
+                {debtCenterCards.slice(0, 2).map(card => {
+                  const targetBalance = card.limit * (targetUtilization / 100)
+                  const paydownNeeded = Math.max(0, card.balance - targetBalance)
+                  return (
+                    <li key={`example-${card.id}`}>
+                      {card.name}: ${card.balance.toLocaleString()} / ${card.limit.toLocaleString()} = {card.utilization.toFixed(1)}% utilization → pay down ${paydownNeeded.toLocaleString('en-US', { maximumFractionDigits: 0 })}.
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <ul className="space-y-1">
+                <li>$3,200 / $10,000 = 32% utilization → pay down $200.</li>
+                <li>$1,500 / $5,000 = 30% utilization → no paydown needed.</li>
+              </ul>
+            )}
           </div>
         </div>
 
