@@ -222,6 +222,9 @@ serve(async (req) => {
             iso_currency_code?: string
             category?: string[]
             category_id?: string
+            personal_finance_category?: {
+              primary?: string
+            }
             date: string
             datetime?: string
             authorized_date?: string
@@ -232,17 +235,22 @@ serve(async (req) => {
               region?: string
               country?: string
             }
-          }) => ({
+          }) => {
+            const categoryHint = tx.personal_finance_category?.primary || tx.category?.[0] || null
+
+            return {
             user_id: user.id,
             account_id: accountMap.get(tx.account_id),
             plaid_transaction_id: tx.transaction_id,
             name: tx.name,
             merchant_name: tx.merchant_name || null,
             amount: tx.amount,
+            currency: tx.iso_currency_code || 'USD',
             currency_code: tx.iso_currency_code || 'USD',
             category: tx.category || [],
             category_id: tx.category_id || null,
-            primary_category: tx.category?.[0] || 'Other',
+            category_hint: categoryHint,
+            primary_category: categoryHint || 'Other',
             date: tx.date,
             datetime: tx.datetime || null,
             authorized_date: tx.authorized_date || null,
@@ -251,7 +259,9 @@ serve(async (req) => {
             location_city: tx.location?.city || null,
             location_region: tx.location?.region || null,
             location_country: tx.location?.country || null,
-          }))
+            raw_json: tx,
+          }
+          })
 
         if (transactionsToUpsert.length > 0) {
           const { error: upsertError } = await supabase
