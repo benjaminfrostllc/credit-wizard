@@ -547,7 +547,7 @@ function Belongings() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-wizard-dark border-2 border-wizard-indigo rounded-2xl p-6 w-full max-w-md relative">
-            {/* Crushed Steel Connect Bank Button - Floating */}
+            {/* Crushed Steel Connect Accounts Button - Floating */}
             <button
               onClick={() => {
                 setShowAddModal(false)
@@ -566,7 +566,7 @@ function Belongings() {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
-                Connect Bank
+                Connect Accounts
               </span>
             </button>
 
